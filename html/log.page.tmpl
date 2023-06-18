@@ -1,0 +1,11 @@
+{{- template "base" . -}}
+
+{{define "title"}}log{{end}}
+
+{{- define "content" -}}
+{{- range .Data.Log}}
+<p>
+{{.Author.When}} <a href="{{.URL}}">{{.Summary}}</a> {{.Author.Name}}
+</p>
+{{- end}}
+{{- end -}}

@@ -1,0 +1,14 @@
+{{- define "header" -}}
+<h1>{{.RepoName}}</h1>
+
+<div>
+    <a href="{{.Repo.SummaryURL}}">summary</a> |
+    <a href="{{.Repo.TreeURL}}">tree</a> |
+    <a href="{{.Repo.LogURL}}">log</a> |
+    <a href="{{.Repo.RefsURL}}">refs</a>
+</div>
+
+<p>git clone {{.Repo.CloneURL}}</p>
+
+<hr />
+{{end -}}

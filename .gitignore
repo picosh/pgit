@@ -1,0 +1,4 @@
+pico-git
+*.swp
+*.log
+public/

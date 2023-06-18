@@ -1,0 +1,9 @@
+{{- template "base" . -}}
+
+{{define "title"}}summary{{end}}
+
+{{define "content"}}
+{{- range .Data.Tree}}
+<p>{{.URL}} {{.Path}} {{.NumLines}}</p>
+{{- end}}
+{{- end -}}

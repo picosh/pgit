@@ -1,0 +1,49 @@
+{{- template "base" . -}}
+{{define "title"}}commit log{{end}}
+
+{{- define "content"}}
+
+<dl>
+    <dt>commit</dt>
+    <dd><a href="{{.Data.CommitURL}}">{{.Data.Commit.ID}}</a></dd>
+
+    <dt>parent</dt>
+    <dd><a href="{{.Data.ParentURL}}">parent {{.Data.Parent}}</a></dd>
+
+    <dt>author</dt>
+    <dd>{{.Data.Commit.Author.Name}}</dd>
+
+    <dt>date</dt>
+    <dd>{{.Data.Commit.Author.When}}</dd>
+</dl>
+
+<p>
+{{.Data.Commit.Message}}
+</p>
+
+<p>
+    <strong>{{.Data.Diff.NumFiles}}</strong> files changed,
+    <span class="color-green">+{{.Data.Diff.TotalAdditions}}</span>,
+    <span class="color-red">-{{.Data.Diff.TotalDeletions}}</span>
+</p>
+
+{{range .Data.Diff.Files}}
+
+<p>
+    {{.OldMode}} {{.OldName}} => {{.Mode}} {{.Name}}
+</p>
+
+<div>
+    <span class="color-green">+{{.NumAdditions}}</span>,
+    <span class="color-red">-{{.NumDeletions}}</span>
+</div>
+
+<pre>
+{{- range .Sections}}
+{{- range .Lines}}
+{{.Content}}
+{{- end}}
+{{- end}}
+</pre>
+{{- end}}
+{{- end }}
