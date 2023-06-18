@@ -136,7 +136,7 @@ func writeHtml(data *WriteData) {
 	bail(err)
 
 	outdir := viper.GetString("outdir")
-	dir := path.Join(outdir, data.RepoName, data.Subdir)
+	dir := path.Join(outdir, "html", data.RepoName, data.Subdir)
 	fmt.Println(dir)
 	fmt.Println(data.Name)
 	err = os.MkdirAll(dir, os.ModePerm)
