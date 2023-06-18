@@ -82,7 +82,7 @@ func bail(err error) {
 }
 
 func CommitURL(repo string, commitID string) string {
-	return fmt.Sprintf("/%s/commits/%s.gmi", repo, commitID)
+	return fmt.Sprintf("/%s/commits/%s.html", repo, commitID)
 }
 
 func repoName(root string) string {
@@ -149,9 +149,32 @@ func writeHtml(data *WriteData) {
 	bail(err)
 }
 
+func writeIndex(data *IndexPage) {
+	files := []string{"./html/index.page.tmpl"}
+	files = append(
+		files,
+		"./html/header.partial.tmpl",
+		"./html/base.layout.tmpl",
+	)
+
+	ts, err := html.ParseFiles(files...)
+	bail(err)
+
+	outdir := viper.GetString("outdir")
+	dir := path.Join(outdir)
+	fmt.Println(dir)
+	err = os.MkdirAll(dir, os.ModePerm)
+	bail(err)
+
+	w, err := os.OpenFile(path.Join(dir, "index.html"), os.O_WRONLY|os.O_CREATE, 0600)
+	bail(err)
+
+	err = ts.Execute(w, data)
+	bail(err)
+}
 func writeSummary(data *PageData) {
 	writeHtml(&WriteData{
-		Name:     "summary.html",
+		Name:     "index.html",
 		Template: "./html/summary.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -266,10 +289,10 @@ func writeRepo(root string) {
 	name := repoName(root)
 	repoData := &RepoData{
 		Name:       name,
-		SummaryURL: fmt.Sprintf("/%s/summary", name),
-		TreeURL:    fmt.Sprintf("/%s/tree", name),
-		LogURL:     fmt.Sprintf("/%s/log", name),
-		RefsURL:    fmt.Sprintf("/%s/refs", name),
+		SummaryURL: fmt.Sprintf("/%s/index.html", name),
+		TreeURL:    fmt.Sprintf("/%s/tree.html", name),
+		LogURL:     fmt.Sprintf("/%s/log.html", name),
+		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
 		CloneURL:   fmt.Sprintf("/%s.git", name),
 	}
 
@@ -339,6 +362,18 @@ func main() {
 	bail(err)
 
 	repos := viper.GetStringSlice("repos")
+	repoList := []*RepoItemData{}
+	for _, r := range repos {
+		name := repoName(r)
+		url := path.Join("/", name, "index.html")
+		repoList = append(repoList, &RepoItemData{
+			URL: url,
+			Name: name,
+		})
+	}
+	writeIndex(&IndexPage{
+		RepoList: repoList,
+	})
 	for _, r := range repos {
 		writeRepo(r)
 	}
