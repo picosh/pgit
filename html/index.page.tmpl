@@ -1,10 +1,12 @@
-{{- template "base" . -}}
+{{template "base" .}}
 
 {{define "title"}}index{{end}}
 
-{{- define "content" -}}
-<h1>repos</h1>
-{{- range .RepoList}}
-<a href="{{.URL}}">{{.Name}}</a>
-{{- end}}
-{{- end -}}
+{{define "content"}}
+  <h1>repos</h1>
+  {{range .RepoList}}
+    <div>
+      <a href="{{.URL}}">{{.Name}}</a>
+    </div>
+  {{end}}
+{{end}}

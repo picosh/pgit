@@ -1,7 +1,8 @@
-{{- template "base" . -}}
+{{template "base" .}}
 
 {{define "title"}}summary{{end}}
 
-{{- define "content" -}}
-<p>{{.Data.Readme}}</p>
-{{- end -}}
+{{define "content"}}
+  {{template "header" .}}
+  <p>{{.Data.Readme}}</p>
+{{end}}

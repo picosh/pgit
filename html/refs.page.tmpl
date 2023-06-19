@@ -1,15 +1,17 @@
-{{- template "base" . -}}
+{{template "base" .}}
 
 {{define "title"}}refs{{end}}
 
-{{- define "content"}}
-<h2>branches</h2>
-{{- range .Data.Branches}}
-<p>{{.Refspec}}</p>
-{{- end}}
+{{define "content"}}
+  {{template "header" .}}
 
-<h2>tags</h2>
-{{- range .Data.Tags}}
-<p>{{.Refspec}}</p>
-{{- end}}
-{{- end -}}
+  <h2>branches</h2>
+  {{range .Data.Branches}}
+    <p>{{.Refspec}}</p>
+  {{end}}
+
+  <h2>tags</h2>
+  {{range .Data.Tags}}
+    <p>{{.Refspec}}</p>
+  {{end}}
+{{end}}

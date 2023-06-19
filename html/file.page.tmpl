@@ -1,10 +1,10 @@
-{{- template "base" . -}}
+{{template "base" .}}
 {{define "title"}}file{{end}}
 
-{{- define "content"}}
-<h1>{{.Name}}</h1>
+{{define "content"}}
+  {{template "header" .}}
 
-<pre>
-{{.Data.Contents}}
-</pre>
-{{- end }}
+  <h1>{{.Name}}</h1>
+
+  <pre>{{.Data.Contents}}</pre>
+{{end }}
