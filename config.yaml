@@ -1,3 +1,8 @@
+url: git.erock.io
 repos:
-  - /app/pico
-  - /app/ops
+  - path: /home/erock/dev/pico/pico
+    refs:
+      - main
+  - path: /home/erock/dev/pico/pico-ops
+    refs:
+      - main

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	html "html/template"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	git "github.com/gogs/git-module"
@@ -83,11 +83,16 @@ func CommitURL(repo string, commitID string) string {
 }
 
 func repoName(root string) string {
-	_, file := path.Split(root)
+	_, file := filepath.Split(root)
 	return file
 }
-func findDefaultBranch(refs []*git.Reference) *git.Reference {
-	for _, def := range defaultBranches {
+func findDefaultBranch(config *RepoConfig, refs []*git.Reference) *git.Reference {
+	branches := config.Refs
+	if len(branches) == 0 {
+		branches = defaultBranches
+	}
+
+	for _, def := range branches {
 		for _, ref := range refs {
 			if "refs/heads/"+def == ref.Refspec {
 				return ref
@@ -113,7 +118,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 			aggregate = append(aggregate, &TreeItem{
 				Path:  fname,
 				Entry: entry,
-				URL:   path.Join("/tree", branch, fname),
+				URL:   filepath.Join("/", "tree", branch, "item", fname),
 			})
 		}
 	}
@@ -133,13 +138,13 @@ func writeHtml(data *WriteData) {
 	bail(err)
 
 	outdir := viper.GetString("outdir")
-	dir := path.Join(outdir, data.RepoName, data.Subdir)
+	dir := filepath.Join(outdir, data.RepoName, data.Subdir)
 	fmt.Println(dir)
 	fmt.Println(data.Name)
 	err = os.MkdirAll(dir, os.ModePerm)
 	bail(err)
 
-	w, err := os.OpenFile(path.Join(dir, data.Name), os.O_WRONLY|os.O_CREATE, 0755)
+	w, err := os.OpenFile(filepath.Join(dir, data.Name), os.O_WRONLY|os.O_CREATE, 0755)
 	bail(err)
 
 	err = ts.Execute(w, data)
@@ -158,18 +163,19 @@ func writeIndex(data *IndexPage) {
 	bail(err)
 
 	outdir := viper.GetString("outdir")
-	dir := path.Join(outdir)
+	dir := filepath.Join(outdir)
 	fmt.Println(dir)
 	err = os.MkdirAll(dir, os.ModePerm)
 	bail(err)
 
-	w, err := os.OpenFile(path.Join(dir, "index.html"), os.O_WRONLY|os.O_CREATE, 0755)
+	w, err := os.OpenFile(filepath.Join(dir, "index.html"), os.O_WRONLY|os.O_CREATE, 0755)
 	bail(err)
 
 	err = ts.Execute(w, data)
 	bail(err)
 }
-func writeSummary(data *PageData) {
+
+func writeRootSummary(data *PageData) {
 	writeHtml(&WriteData{
 		Name:     "index.html",
 		Template: "./html/summary.page.tmpl",
@@ -178,9 +184,20 @@ func writeSummary(data *PageData) {
 		Repo:     data.Repo,
 	})
 }
+func writeSummary(data *PageData) {
+	writeHtml(&WriteData{
+		Name:     "index.html",
+		Subdir: filepath.Join("tree", data.RevName),
+		Template: "./html/summary.page.tmpl",
+		Data:     data,
+		RepoName: data.Repo.Name,
+		Repo:     data.Repo,
+	})
+}
 func writeTree(data *PageData) {
 	writeHtml(&WriteData{
-		Name:     "tree.html",
+		Name:     "index.html",
+		Subdir: filepath.Join("tree", data.RevName),
 		Template: "./html/tree.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -189,7 +206,8 @@ func writeTree(data *PageData) {
 }
 func writeLog(data *PageData) {
 	writeHtml(&WriteData{
-		Name:     "log.html",
+		Name:     "index.html",
+		Subdir: filepath.Join("logs", data.RevName),
 		Template: "./html/log.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -216,13 +234,13 @@ func writeHTMLTreeFiles(data *PageData) {
 		bail(err)
 		file.NumLines = len(strings.Split(string(b), "\n"))
 
-		d := path.Dir(file.Path)
+		d := filepath.Dir(file.Path)
 		writeHtml(&WriteData{
 			Name:     fmt.Sprintf("%s.html", file.Entry.Name()),
 			Template: "./html/file.page.tmpl",
 			Data:     &FileData{Contents: string(b)},
 			RepoName: data.Repo.Name,
-			Subdir:   path.Join("tree", data.RevName, d),
+			Subdir:   filepath.Join("tree", data.RevName, "item", d),
 			Repo:     data.Repo,
 		})
 	}
@@ -285,40 +303,62 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 	}
 }
 
-func writeRepo(root string) {
-	repo, err := git.Open(root)
+func writeRepo(config *RepoConfig) {
+	repo, err := git.Open(config.Path)
 	bail(err)
 
-	name := repoName(root)
-	repoData := &RepoData{
-		Name:       name,
-		SummaryURL: fmt.Sprintf("/%s/index.html", name),
-		TreeURL:    fmt.Sprintf("/%s/tree.html", name),
-		LogURL:     fmt.Sprintf("/%s/log.html", name),
-		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
-		CloneURL:   fmt.Sprintf("/%s.git", name),
-	}
+	name := repoName(config.Path)
 
 	heads, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: false})
 	bail(err)
 
+	rev := findDefaultBranch(config, heads)
+	if rev == nil {
+		bail(fmt.Errorf("no default branch found"))
+	}
+	_, revName := filepath.Split(rev.Refspec)
+
+	repoData := &RepoData{
+		Name:       name,
+		SummaryURL: fmt.Sprintf("/%s/index.html", name),
+		TreeURL:    fmt.Sprintf("/%s/tree/%s/index.html", name, revName),
+		LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revName),
+		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
+		CloneURL:   fmt.Sprintf("/%s.git", name),
+	}
+
 	tags, _ := repo.ShowRef(git.ShowRefOptions{Heads: false, Tags: true})
 
 	cache := make(map[string]bool)
-	rev := findDefaultBranch(heads)
-	if rev != nil {
-		// for _, rev := range heads {
-		_, revName := path.Split(rev.Refspec)
-		data := &PageData{
-			Branches: heads,
-			Tags:     tags,
-			Rev:      rev,
-			RevName:  revName,
-			Repo:     repoData,
-			Readme:   "",
-		}
 
-		writeBranch(repo, data, cache)
+	data := &PageData{
+		Branches: heads,
+		Tags:     tags,
+		Rev:      rev,
+		RevName:  revName,
+		Repo:     repoData,
+		Readme:   "",
+	}
+	writeRootSummary(data)
+	writeRefs(data)
+
+	for _, revn := range config.Refs {
+		for _, head := range heads {
+			_, headName := filepath.Split(head.Refspec)
+			if revn != headName {
+				continue
+			}
+			data := &PageData{
+				Branches: heads,
+				Tags:     tags,
+				Rev:      head,
+				RevName:  headName,
+				Repo:     repoData,
+				Readme:   "",
+			}
+
+			writeBranch(repo, data, cache)
+		}
 	}
 }
 
@@ -340,11 +380,12 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 	treeEntries := walkTree(tree, pageData.RevName, "", entries)
 	for _, entry := range treeEntries {
 		entry.Path = strings.TrimPrefix(entry.Path, "/")
-		entry.URL = path.Join(
+		entry.URL = filepath.Join(
 			"/",
 			pageData.Repo.Name,
 			"tree",
 			pageData.RevName,
+			"item",
 			fmt.Sprintf("%s.html", entry.Path),
 		)
 	}
@@ -352,9 +393,7 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 	pageData.Log = logs
 	pageData.Tree = treeEntries
 
-	writeSummary(pageData)
 	writeLog(pageData)
-	writeRefs(pageData)
 	writeHTMLTreeFiles(pageData)
 	writeLogDiffs(pageData.Repo.Name, repo, pageData, cache)
 
@@ -365,6 +404,15 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 	}
 }
 
+type RepoConfig struct {
+	Path string   `mapstructure:"path"`
+	Refs []string `mapstructure:"refs"`
+}
+type Config struct {
+	Repos []*RepoConfig `mapstructure:"repos"`
+	URL   string        `mapstructure:"url"`
+}
+
 func main() {
 	viper.SetDefault("outdir", "./public")
 	viper.SetConfigName("config")
@@ -373,11 +421,15 @@ func main() {
 	err := viper.ReadInConfig()
 	bail(err)
 
-	repos := viper.GetStringSlice("repos")
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		fmt.Println(err)
+		return
+	}
 	repoList := []*RepoItemData{}
-	for _, r := range repos {
-		name := repoName(r)
-		url := path.Join("/", name, "index.html")
+	for _, r := range config.Repos {
+		name := repoName(r.Path)
+		url := filepath.Join("/", name, "index.html")
 		repoList = append(repoList, &RepoItemData{
 			URL:  url,
 			Name: name,
@@ -386,7 +438,7 @@ func main() {
 	writeIndex(&IndexPage{
 		RepoList: repoList,
 	})
-	for _, r := range repos {
+	for _, r := range config.Repos {
 		writeRepo(r)
 	}
 }
