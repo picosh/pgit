@@ -11,5 +11,5 @@ static: build clean
 .PHONY:
 
 deploy:
-	scp -R ./public/* erock@pgs.sh:/git
+	scp -r ./public/* erock@pgs.sh:/git
 .PHONY: deploy
