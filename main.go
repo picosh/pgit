@@ -187,7 +187,7 @@ func writeRootSummary(data *PageData) {
 func writeSummary(data *PageData) {
 	writeHtml(&WriteData{
 		Name:     "index.html",
-		Subdir: filepath.Join("tree", data.RevName),
+		Subdir:   filepath.Join("tree", data.RevName),
 		Template: "./html/summary.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -197,7 +197,7 @@ func writeSummary(data *PageData) {
 func writeTree(data *PageData) {
 	writeHtml(&WriteData{
 		Name:     "index.html",
-		Subdir: filepath.Join("tree", data.RevName),
+		Subdir:   filepath.Join("tree", data.RevName),
 		Template: "./html/tree.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -207,7 +207,7 @@ func writeTree(data *PageData) {
 func writeLog(data *PageData) {
 	writeHtml(&WriteData{
 		Name:     "index.html",
-		Subdir: filepath.Join("logs", data.RevName),
+		Subdir:   filepath.Join("logs", data.RevName),
 		Template: "./html/log.page.tmpl",
 		Data:     data,
 		RepoName: data.Repo.Name,
@@ -247,13 +247,7 @@ func writeHTMLTreeFiles(data *PageData) {
 }
 
 func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache map[string]bool) {
-	var lastCommit *CommitData
 	for _, commit := range data.Log {
-		if lastCommit == nil {
-			lastCommit = commit
-			continue
-		}
-
 		commitID := commit.ID.String()
 
 		if cache[commitID] {
@@ -262,25 +256,27 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 			cache[commitID] = true
 		}
 
+		ancestors, err := commit.Ancestors()
+		bail(err)
+
+		// if no ancestors exist then we are at initial commit
+		parent := commit
+		if len(ancestors) > 0 {
+			pt := ancestors[0]
+			parent = &CommitData{
+				Commit: pt,
+				URL:    CommitURL(project, pt.ID.String()),
+			}
+		}
+		parentID := parent.ID.String()
+
 		diff, err := repo.Diff(
-			lastCommit.ID.String(),
+			parentID,
 			0,
 			0,
 			0,
 			git.DiffOptions{Base: commitID},
 		)
-		bail(err)
-
-		ancestors, err := commit.Ancestors()
-		bail(err)
-
-		parentID := ""
-		if len(ancestors) > 0 {
-			parent := ancestors[0]
-			if parent != nil {
-				parentID = parent.ID.String()
-			}
-		}
 
 		commitData := &CommitPageData{
 			Commit:    commit,
@@ -299,7 +295,6 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 			Subdir:   "commits",
 			Repo:     data.Repo,
 		})
-		lastCommit = commit
 	}
 }
 

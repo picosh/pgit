@@ -9,3 +9,7 @@ build:
 static: build clean
 	./pgit
 .PHONY:
+
+deploy:
+	scp -R ./public/* erock@pgs.sh:/git
+.PHONY: deploy
