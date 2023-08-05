@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	html "html/template"
 	"os"
 	"path/filepath"
 	"strings"
 
 	git "github.com/gogs/git-module"
+	"github.com/picosh/pico/pastes"
 	"github.com/spf13/viper"
 )
 
@@ -55,8 +57,9 @@ type PageData struct {
 }
 
 type CommitPageData struct {
+	CommitMsg template.HTML
 	Commit    *CommitData
-	Diff      *git.Diff
+	Diff      *DiffRender
 	Repo      *RepoData
 	Parent    string
 	ParentURL string
@@ -70,6 +73,38 @@ type WriteData struct {
 	RepoName string
 	Subdir   string
 	Repo     *RepoData
+}
+
+type DiffRender struct {
+	NumFiles       int
+	TotalAdditions int
+	TotalDeletions int
+	Files          []*DiffRenderFile
+}
+
+type DiffRenderFile struct {
+	FileType     string
+	OldMode      git.EntryMode
+	OldName      string
+	Mode         git.EntryMode
+	Name         string
+	Content      template.HTML
+	NumAdditions int
+	NumDeletions int
+}
+
+func diffFileType(_type git.DiffFileType) string {
+	if _type == git.DiffFileAdd {
+		return "A"
+	} else if _type == git.DiffFileChange {
+		return "M"
+	} else if _type == git.DiffFileDelete {
+		return "D"
+	} else if _type == git.DiffFileRename {
+		return "R"
+	}
+
+	return ""
 }
 
 func bail(err error) {
@@ -225,7 +260,7 @@ func writeRefs(data *PageData) {
 }
 
 type FileData struct {
-	Contents string
+	Contents template.HTML
 }
 
 func writeHTMLTreeFiles(data *PageData) {
@@ -235,10 +270,14 @@ func writeHTMLTreeFiles(data *PageData) {
 		file.NumLines = len(strings.Split(string(b), "\n"))
 
 		d := filepath.Dir(file.Path)
+		contents, err := pastes.ParseText(file.Entry.Name(), string(b))
+		if err != nil {
+			panic(err)
+		}
 		writeHtml(&WriteData{
 			Name:     fmt.Sprintf("%s.html", file.Entry.Name()),
 			Template: "./html/file.page.tmpl",
-			Data:     &FileData{Contents: string(b)},
+			Data:     &FileData{Contents: template.HTML(contents)},
 			RepoName: data.Repo.Name,
 			Subdir:   filepath.Join("tree", data.RevName, "item", d),
 			Repo:     data.Repo,
@@ -278,9 +317,40 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 			git.DiffOptions{Base: commitID},
 		)
 
+		rnd := &DiffRender{
+			NumFiles:       diff.NumFiles(),
+			TotalAdditions: diff.TotalAdditions(),
+			TotalDeletions: diff.TotalDeletions(),
+		}
+		fls := []*DiffRenderFile{}
+		for _, file := range diff.Files {
+			fl := &DiffRenderFile{
+				FileType:     diffFileType(file.Type),
+				OldMode:      file.OldMode(),
+				OldName:      file.OldName(),
+				Mode:         file.Mode(),
+				Name:         file.Name,
+				NumAdditions: file.NumAdditions(),
+				NumDeletions: file.NumDeletions(),
+			}
+			content := ""
+			for _, section := range file.Sections {
+				for _, line := range section.Lines {
+					content += fmt.Sprintf("%s\n", line.Content)
+				}
+			}
+			finContent, err := pastes.ParseText("commit.diff", content)
+			if err != nil {
+				panic(err)
+			}
+			fl.Content = template.HTML(finContent)
+			fls = append(fls, fl)
+		}
+		rnd.Files = fls
+
 		commitData := &CommitPageData{
 			Commit:    commit,
-			Diff:      diff,
+			Diff:      rnd,
 			Repo:      data.Repo,
 			Parent:    parentID,
 			CommitURL: CommitURL(project, commitID),

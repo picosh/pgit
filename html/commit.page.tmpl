@@ -9,7 +9,7 @@
       <dd><a href="{{.Data.CommitURL}}">{{.Data.Commit.ID}}</a></dd>
 
       <dt>parent</dt>
-      <dd><a href="{{.Data.ParentURL}}">parent {{.Data.Parent}}</a></dd>
+      <dd><a href="{{.Data.ParentURL}}">{{.Data.Parent}}</a></dd>
 
       <dt>author</dt>
       <dd>{{.Data.Commit.Author.Name}}</dd>
@@ -18,33 +18,34 @@
       <dd>{{.Data.Commit.Author.When}}</dd>
   </dl>
 
-  <p>
-    {{.Data.Commit.Message}}
-  </p>
+  <pre>{{.Data.Commit.Message}}</pre>
 
-  <p>
-      <strong>{{.Data.Diff.NumFiles}}</strong> files changed,
+  <div class="box mono">
+    <div>
+      <strong>{{.Data.Diff.NumFiles}}</strong> files changed,&nbps;
       <span class="color-green">+{{.Data.Diff.TotalAdditions}}</span>,
       <span class="color-red">-{{.Data.Diff.TotalDeletions}}</span>
-  </p>
+    </div>
 
-  {{range .Data.Diff.Files}}
-
-  <p>
-      {{.OldMode}} {{.OldName}} => {{.Mode}} {{.Name}}
-  </p>
-
-  <div>
-      <span class="color-green">+{{.NumAdditions}}</span>,
-      <span class="color-red">-{{.NumDeletions}}</span>
+    <div>
+    {{range .Data.Diff.Files}}
+      <div>
+        <span>{{.FileType}}</span>
+        <span>{{.Name}}</span>
+      </div>
+    {{end}}
+    </div>
   </div>
 
-  <pre>
-  {{range .Sections}}
-    {{range .Lines}}
-      {{.Content}}
-    {{end}}
-  {{end}}
-  </pre>
+  {{range .Data.Diff.Files}}
+    <div class="flex justify-between mono">
+      <span>{{.FileType}} {{.OldName}} => {{.Name}}</span>
+      <div>
+        <span class="color-green">+{{.NumAdditions}}</span>,
+        <span class="color-red">-{{.NumDeletions}}</span>
+      </div>
+    </div>
+
+    {{.Content}}
   {{end}}
 {{end}}

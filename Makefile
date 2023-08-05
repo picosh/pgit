@@ -7,6 +7,7 @@ build:
 .PHONY: build
 
 static: build clean
+	cp -R ./static ./public
 	./pgit
 .PHONY:
 
