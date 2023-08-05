@@ -5,10 +5,16 @@
 {{define "content"}}
   {{template "header" .}}
 
+  <div>
   {{range .Data.Tree}}
-    <div>
-      <a href="{{.URL}}">{{.Path}}</a>
-      <span> (lines: {{.NumLines}})</span>
+    <div class="flex justify-between mt">
+      <div class="text-md">
+        <a href="{{.URL}}">{{.Path}}</a>
+      </div>
+      <div class="mono">
+        <span>lines: {{.NumLines}}</span>
+      </div>
     </div>
   {{end}}
+  </div>
 {{end}}

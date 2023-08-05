@@ -3,6 +3,8 @@ repos:
   - path: /home/erock/dev/pico/pico
     refs:
       - main
+    desc: pico services - prose.sh, lists.sh, pastes.sh, imgs.sh, feeds.sh, pgs.sh
   - path: /home/erock/dev/pico/pico-ops
     refs:
       - main
+    desc: infra for pico services

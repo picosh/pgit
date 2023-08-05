@@ -26,6 +26,7 @@ type IndexPage struct {
 
 type RepoData struct {
 	Name       string
+	Desc       string
 	SummaryURL string
 	TreeURL    string
 	LogURL     string
@@ -51,7 +52,7 @@ type PageData struct {
 	Branches []*git.Reference
 	Tags     []*git.Reference
 	Tree     []*TreeItem
-	Readme   string
+	Readme   template.HTML
 	Rev      *git.Reference
 	RevName  string
 }
@@ -219,16 +220,7 @@ func writeRootSummary(data *PageData) {
 		Repo:     data.Repo,
 	})
 }
-func writeSummary(data *PageData) {
-	writeHtml(&WriteData{
-		Name:     "index.html",
-		Subdir:   filepath.Join("tree", data.RevName),
-		Template: "./html/summary.page.tmpl",
-		Data:     data,
-		RepoName: data.Repo.Name,
-		Repo:     data.Repo,
-	})
-}
+
 func writeTree(data *PageData) {
 	writeHtml(&WriteData{
 		Name:     "index.html",
@@ -263,7 +255,8 @@ type FileData struct {
 	Contents template.HTML
 }
 
-func writeHTMLTreeFiles(data *PageData) {
+func writeHTMLTreeFiles(data *PageData) string {
+	readme := ""
 	for _, file := range data.Tree {
 		b, err := file.Entry.Blob().Bytes()
 		bail(err)
@@ -271,9 +264,13 @@ func writeHTMLTreeFiles(data *PageData) {
 
 		d := filepath.Dir(file.Path)
 		contents, err := pastes.ParseText(file.Entry.Name(), string(b))
-		if err != nil {
-			panic(err)
+		bail(err)
+
+		nameLower := strings.ToLower(file.Entry.Name())
+		if nameLower == "readme.md" {
+			readme = contents
 		}
+
 		writeHtml(&WriteData{
 			Name:     fmt.Sprintf("%s.html", file.Entry.Name()),
 			Template: "./html/file.page.tmpl",
@@ -283,6 +280,7 @@ func writeHTMLTreeFiles(data *PageData) {
 			Repo:     data.Repo,
 		})
 	}
+	return readme
 }
 
 func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache map[string]bool) {
@@ -340,9 +338,8 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 				}
 			}
 			finContent, err := pastes.ParseText("commit.diff", content)
-			if err != nil {
-				panic(err)
-			}
+			bail(err)
+
 			fl.Content = template.HTML(finContent)
 			fls = append(fls, fl)
 		}
@@ -373,6 +370,7 @@ func writeRepo(config *RepoConfig) {
 	bail(err)
 
 	name := repoName(config.Path)
+	desc := config.Desc
 
 	heads, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: false})
 	bail(err)
@@ -385,6 +383,7 @@ func writeRepo(config *RepoConfig) {
 
 	repoData := &RepoData{
 		Name:       name,
+		Desc:       desc,
 		SummaryURL: fmt.Sprintf("/%s/index.html", name),
 		TreeURL:    fmt.Sprintf("/%s/tree/%s/index.html", name, revName),
 		LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revName),
@@ -396,17 +395,7 @@ func writeRepo(config *RepoConfig) {
 
 	cache := make(map[string]bool)
 
-	data := &PageData{
-		Branches: heads,
-		Tags:     tags,
-		Rev:      rev,
-		RevName:  revName,
-		Repo:     repoData,
-		Readme:   "",
-	}
-	writeRootSummary(data)
-	writeRefs(data)
-
+	readme := ""
 	for _, revn := range config.Refs {
 		for _, head := range heads {
 			_, headName := filepath.Split(head.Refspec)
@@ -419,15 +408,28 @@ func writeRepo(config *RepoConfig) {
 				Rev:      head,
 				RevName:  headName,
 				Repo:     repoData,
-				Readme:   "",
 			}
 
-			writeBranch(repo, data, cache)
+			branchReadme := writeBranch(repo, data, cache)
+			if readme == "" {
+				readme = branchReadme
+			}
 		}
 	}
+
+	data := &PageData{
+		Branches: heads,
+		Tags:     tags,
+		Rev:      rev,
+		RevName:  revName,
+		Repo:     repoData,
+		Readme:   template.HTML(readme),
+	}
+	writeRefs(data)
+	writeRootSummary(data)
 }
 
-func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool) {
+func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool) string {
 	commits, err := repo.CommitsByPage(pageData.Rev.ID, 0, 100)
 	bail(err)
 
@@ -459,7 +461,7 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 	pageData.Tree = treeEntries
 
 	writeLog(pageData)
-	writeHTMLTreeFiles(pageData)
+	readme := writeHTMLTreeFiles(pageData)
 	writeLogDiffs(pageData.Repo.Name, repo, pageData, cache)
 
 	for _, def := range defaultBranches {
@@ -467,11 +469,14 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 			writeTree(pageData)
 		}
 	}
+
+	return readme
 }
 
 type RepoConfig struct {
 	Path string   `mapstructure:"path"`
 	Refs []string `mapstructure:"refs"`
+	Desc string   `mapstructure:"desc"`
 }
 type Config struct {
 	Repos []*RepoConfig `mapstructure:"repos"`

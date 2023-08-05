@@ -1,17 +1,20 @@
 {{define "header"}}
-<h1>
+<h1 class="text-xl">
   <a href="/">repos</a>
   <span>&nbsp;/&nbsp;{{.RepoName}}</span>
 </h1>
 
-<div>
-    <a href="{{.Repo.SummaryURL}}">summary</a> |
-    <a href="{{.Repo.TreeURL}}">tree</a> |
-    <a href="{{.Repo.LogURL}}">log</a> |
-    <a href="{{.Repo.RefsURL}}">refs</a>
+<div class="text-lg">
+  <a href="{{.Repo.SummaryURL}}">summary</a> |
+  <a href="{{.Repo.TreeURL}}">tree</a> |
+  <a href="{{.Repo.LogURL}}">log</a> |
+  <a href="{{.Repo.RefsURL}}">refs</a>
 </div>
 
-<p>git clone {{.Repo.CloneURL}}</p>
+<div class="my">
+  <div class="text-lg">{{.Repo.Desc}}</div>
+  <pre style="margin: 0;">git clone {{.Repo.CloneURL}}</pre>
+</div>
 
 <hr />
 {{end}}

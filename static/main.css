@@ -67,7 +67,7 @@ html {
 
 body {
   margin: 0 auto;
-  max-width: 720px;
+  max-width: 900px;
 }
 
 img {
@@ -113,6 +113,14 @@ pre {
   margin: 1rem 0;
   overflow-x: auto;
   background-color: var(--pre) !important;
+}
+
+.my {
+  margin: 1rem 0;
+}
+
+.mt {
+  margin-top: 1rem;
 }
 
 .mono {
