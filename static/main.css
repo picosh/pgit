@@ -123,6 +123,10 @@ pre {
   margin-top: 1rem;
 }
 
+.my-sm {
+  margin: 5px 0;
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo,
     monospace;

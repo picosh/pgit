@@ -21,6 +21,7 @@ type RepoItemData struct {
 	URL        string
 	Name       string
 	Desc string
+	CommitDate string
 	LastCommit *git.Commit
 }
 
@@ -545,6 +546,7 @@ func main() {
 			URL:        url,
 			Name:       name,
 			Desc: r.Desc,
+			CommitDate: timediff.TimeDiff(mainOutput.LastCommit.Author.When),
 			LastCommit: mainOutput.LastCommit,
 		})
 	}
