@@ -3,10 +3,17 @@
 {{define "title"}}index{{end}}
 
 {{define "content"}}
-  <h1>repos</h1>
-  {{range .RepoList}}
-    <div>
-      <a href="{{.URL}}">{{.Name}}</a>
-    </div>
-  {{end}}
+  <h1 class="text-xl">repos</h1>
+  <div>
+    {{range .RepoList}}
+      <div class="my box">
+        <div class="flex justify-between items-center">
+          <div><a class="text-lg" href="{{.URL}}">{{.Name}}</a></div>
+          <div class="text-sm">{{.LastCommit.Author.When}}</div>
+        </div>
+
+        <div class="my">{{.Desc}}</div>
+      </div>
+    {{end}}
+  </div>
 {{end}}

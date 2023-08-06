@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/gogs/git-module v1.6.0
+	github.com/mergestat/timediff v0.0.3
 	github.com/picosh/pico v1.1.6
 	github.com/spf13/viper v1.12.0
 )

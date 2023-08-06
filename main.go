@@ -6,9 +6,11 @@ import (
 	html "html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	git "github.com/gogs/git-module"
+	"github.com/mergestat/timediff"
 	"github.com/picosh/pico/pastes"
 	"github.com/spf13/viper"
 )
@@ -16,8 +18,10 @@ import (
 var defaultBranches = []string{"main", "master"}
 
 type RepoItemData struct {
-	URL  string
-	Name string
+	URL        string
+	Name       string
+	Desc string
+	LastCommit *git.Commit
 }
 
 type IndexPage struct {
@@ -32,6 +36,7 @@ type RepoData struct {
 	LogURL     string
 	RefsURL    string
 	CloneURL   string
+	MaxCommits int
 }
 
 type CommitData struct {
@@ -44,6 +49,9 @@ type TreeItem struct {
 	URL      string
 	Path     string
 	Entry    *git.TreeEntry
+	CommitURL string
+	Desc string
+	When string
 }
 
 type PageData struct {
@@ -59,6 +67,7 @@ type PageData struct {
 
 type CommitPageData struct {
 	CommitMsg template.HTML
+	CommitID string
 	Commit    *CommitData
 	Diff      *DiffRender
 	Repo      *RepoData
@@ -114,7 +123,7 @@ func bail(err error) {
 	}
 }
 
-func CommitURL(repo string, commitID string) string {
+func commitURL(repo string, commitID string) string {
 	return fmt.Sprintf("/%s/commits/%s.html", repo, commitID)
 }
 
@@ -283,14 +292,15 @@ func writeHTMLTreeFiles(data *PageData) string {
 	return readme
 }
 
-func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache map[string]bool) {
-	for _, commit := range data.Log {
+func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData) {
+	project := pageData.Repo.Name
+	for _, commit := range pageData.Log {
 		commitID := commit.ID.String()
 
-		if cache[commitID] {
+		if c.Cache[commitID] {
 			continue
 		} else {
-			cache[commitID] = true
+			c.Cache[commitID] = true
 		}
 
 		ancestors, err := commit.Ancestors()
@@ -302,7 +312,7 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 			pt := ancestors[0]
 			parent = &CommitData{
 				Commit: pt,
-				URL:    CommitURL(project, pt.ID.String()),
+				URL:    commitURL(project, pt.ID.String()),
 			}
 		}
 		parentID := parent.ID.String()
@@ -347,30 +357,30 @@ func writeLogDiffs(project string, repo *git.Repository, data *PageData, cache m
 
 		commitData := &CommitPageData{
 			Commit:    commit,
+			CommitID: commit.ID.String()[:7],
 			Diff:      rnd,
-			Repo:      data.Repo,
-			Parent:    parentID,
-			CommitURL: CommitURL(project, commitID),
-			ParentURL: CommitURL(project, parentID),
+			Repo:      pageData.Repo,
+			Parent:    parentID[:7],
+			CommitURL: commitURL(project, commitID),
+			ParentURL: commitURL(project, parentID),
 		}
 
 		writeHtml(&WriteData{
 			Name:     fmt.Sprintf("%s.html", commitID),
 			Template: "./html/commit.page.tmpl",
 			Data:     commitData,
-			RepoName: data.Repo.Name,
+			RepoName: pageData.Repo.Name,
 			Subdir:   "commits",
-			Repo:     data.Repo,
+			Repo:     pageData.Repo,
 		})
 	}
 }
 
-func writeRepo(config *RepoConfig) {
+func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 	repo, err := git.Open(config.Path)
 	bail(err)
 
 	name := repoName(config.Path)
-	desc := config.Desc
 
 	heads, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: false})
 	bail(err)
@@ -383,19 +393,19 @@ func writeRepo(config *RepoConfig) {
 
 	repoData := &RepoData{
 		Name:       name,
-		Desc:       desc,
+		Desc:       config.Desc,
+		MaxCommits: config.MaxCommits,
 		SummaryURL: fmt.Sprintf("/%s/index.html", name),
 		TreeURL:    fmt.Sprintf("/%s/tree/%s/index.html", name, revName),
 		LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revName),
 		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
-		CloneURL:   fmt.Sprintf("/%s.git", name),
+		CloneURL:   fmt.Sprintf("https://%s/%s.git", c.URL, name),
 	}
 
 	tags, _ := repo.ShowRef(git.ShowRefOptions{Heads: false, Tags: true})
 
-	cache := make(map[string]bool)
-
-	readme := ""
+	var mainOutput *BranchOutput
+	claimed := false
 	for _, revn := range config.Refs {
 		for _, head := range heads {
 			_, headName := filepath.Split(head.Refspec)
@@ -410,9 +420,10 @@ func writeRepo(config *RepoConfig) {
 				Repo:     repoData,
 			}
 
-			branchReadme := writeBranch(repo, data, cache)
-			if readme == "" {
-				readme = branchReadme
+			branchOutput := c.writeBranch(repo, data)
+			if !claimed {
+				mainOutput = branchOutput
+				claimed = true
 			}
 		}
 	}
@@ -423,20 +434,36 @@ func writeRepo(config *RepoConfig) {
 		Rev:      rev,
 		RevName:  revName,
 		Repo:     repoData,
-		Readme:   template.HTML(readme),
+		Readme:   template.HTML(mainOutput.Readme),
 	}
 	writeRefs(data)
 	writeRootSummary(data)
+	return mainOutput
 }
 
-func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool) string {
-	commits, err := repo.CommitsByPage(pageData.Rev.ID, 0, 100)
+type BranchOutput struct {
+	Readme     string
+	LastCommit *git.Commit
+}
+
+func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOutput {
+	output := &BranchOutput{}
+	pageSize := pageData.Repo.MaxCommits
+	if pageSize == 0 {
+		pageSize = 5000
+	}
+
+	commits, err := repo.CommitsByPage(pageData.Rev.ID, 0, pageSize)
 	bail(err)
 
 	logs := []*CommitData{}
-	for _, commit := range commits {
+	for i, commit := range commits {
+		if i == 0 {
+			output.LastCommit = commit
+		}
+
 		logs = append(logs, &CommitData{
-			URL:    CommitURL(pageData.Repo.Name, commit.ID.String()),
+			URL:    commitURL(pageData.Repo.Name, commit.ID.String()),
 			Commit: commit,
 		})
 	}
@@ -447,6 +474,19 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 	treeEntries := walkTree(tree, pageData.RevName, "", entries)
 	for _, entry := range treeEntries {
 		entry.Path = strings.TrimPrefix(entry.Path, "/")
+
+		lastCommits, err := repo.RevList([]string{pageData.Rev.Refspec}, git.RevListOptions{
+			Path: entry.Path,
+		})
+		bail(err)
+
+		var lc *git.Commit
+		if (len(lastCommits) > 0) {
+			lc = lastCommits[0]
+		}
+		entry.CommitURL = commitURL(pageData.Repo.Name, lc.ID.String())
+		entry.Desc = lc.Summary()
+		entry.When = timediff.TimeDiff(lc.Author.When)
 		entry.URL = filepath.Join(
 			"/",
 			pageData.Repo.Name,
@@ -462,25 +502,24 @@ func writeBranch(repo *git.Repository, pageData *PageData, cache map[string]bool
 
 	writeLog(pageData)
 	readme := writeHTMLTreeFiles(pageData)
-	writeLogDiffs(pageData.Repo.Name, repo, pageData, cache)
+	c.writeLogDiffs(repo, pageData)
 
-	for _, def := range defaultBranches {
-		if def == pageData.RevName {
-			writeTree(pageData)
-		}
-	}
+	writeTree(pageData)
 
-	return readme
+	output.Readme = readme
+	return output
 }
 
 type RepoConfig struct {
-	Path string   `mapstructure:"path"`
-	Refs []string `mapstructure:"refs"`
-	Desc string   `mapstructure:"desc"`
+	Path       string   `mapstructure:"path"`
+	Refs       []string `mapstructure:"refs"`
+	Desc       string   `mapstructure:"desc"`
+	MaxCommits int      `mapstructure:"max_commits"`
 }
 type Config struct {
 	Repos []*RepoConfig `mapstructure:"repos"`
 	URL   string        `mapstructure:"url"`
+	Cache map[string]bool
 }
 
 func main() {
@@ -492,23 +531,30 @@ func main() {
 	bail(err)
 
 	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		fmt.Println(err)
-		return
-	}
+	err = viper.Unmarshal(&config)
+	bail(err)
+
+	config.Cache = make(map[string]bool)
+
 	repoList := []*RepoItemData{}
 	for _, r := range config.Repos {
+		mainOutput := config.writeRepo(r)
 		name := repoName(r.Path)
 		url := filepath.Join("/", name, "index.html")
 		repoList = append(repoList, &RepoItemData{
-			URL:  url,
-			Name: name,
+			URL:        url,
+			Name:       name,
+			Desc: r.Desc,
+			LastCommit: mainOutput.LastCommit,
 		})
 	}
+	sort.Slice(repoList, func(i, j int) bool {
+		first := repoList[i].LastCommit.Author.When
+		second := repoList[j].LastCommit.Author.When
+		return first.After(second)
+	})
+
 	writeIndex(&IndexPage{
 		RepoList: repoList,
 	})
-	for _, r := range config.Repos {
-		writeRepo(r)
-	}
 }

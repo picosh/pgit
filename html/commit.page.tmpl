@@ -5,17 +5,17 @@
   {{template "header" .}}
 
   <dl>
-      <dt>commit</dt>
-      <dd><a href="{{.Data.CommitURL}}">{{.Data.Commit.ID}}</a></dd>
+    <dt>commit</dt>
+    <dd><a href="{{.Data.CommitURL}}">{{.Data.CommitID}}</a></dd>
 
-      <dt>parent</dt>
-      <dd><a href="{{.Data.ParentURL}}">{{.Data.Parent}}</a></dd>
+    <dt>parent</dt>
+    <dd><a href="{{.Data.ParentURL}}">{{.Data.Parent}}</a></dd>
 
-      <dt>author</dt>
-      <dd>{{.Data.Commit.Author.Name}}</dd>
+    <dt>author</dt>
+    <dd>{{.Data.Commit.Author.Name}}</dd>
 
-      <dt>date</dt>
-      <dd>{{.Data.Commit.Author.When}}</dd>
+    <dt>date</dt>
+    <dd>{{.Data.Commit.Author.When}}</dd>
   </dl>
 
   <pre>{{.Data.Commit.Message}}</pre>
@@ -31,15 +31,15 @@
     {{range .Data.Diff.Files}}
       <div>
         <span>{{.FileType}}</span>
-        <span>{{.Name}}</span>
+        <a href="#diff-{{.Name}}">{{.Name}}</a>
       </div>
     {{end}}
     </div>
   </div>
 
   {{range .Data.Diff.Files}}
-    <div class="flex justify-between mono">
-      <span>{{.FileType}} {{.OldName}} => {{.Name}}</span>
+    <div id="diff-{{.Name}}" class="flex justify-between mono">
+      <span>{{.FileType}} {{if eq .FileType "R"}}{{.OldName}} => {{end}}{{.Name}}</span>
       <div>
         <span class="color-green">+{{.NumAdditions}}</span>,
         <span class="color-red">-{{.NumDeletions}}</span>
