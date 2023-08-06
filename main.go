@@ -38,10 +38,14 @@ type RepoData struct {
 	RefsURL    string
 	CloneURL   string
 	MaxCommits int
+	RevName string
 }
 
 type CommitData struct {
+	SummaryStr string
 	URL string
+	WhenStr string
+	AuthorStr string
 	*git.Commit
 }
 
@@ -58,12 +62,11 @@ type TreeItem struct {
 type PageData struct {
 	Repo     *RepoData
 	Log      []*CommitData
-	Branches []*git.Reference
-	Tags     []*git.Reference
 	Tree     []*TreeItem
 	Readme   template.HTML
 	Rev      *git.Reference
 	RevName  string
+	Refs     []*RefInfo
 }
 
 type CommitPageData struct {
@@ -378,16 +381,21 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData) {
 	}
 }
 
+type RefInfo struct {
+	Refspec string
+	URL     template.URL
+}
+
 func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 	repo, err := git.Open(config.Path)
 	bail(err)
 
 	name := repoName(config.Path)
 
-	heads, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: false})
+	refs, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: true})
 	bail(err)
 
-	rev := findDefaultBranch(config, heads)
+	rev := findDefaultBranch(config, refs)
 	if rev == nil {
 		bail(fmt.Errorf("no default branch found"))
 	}
@@ -402,24 +410,39 @@ func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 		LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revName),
 		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
 		CloneURL:   fmt.Sprintf("https://%s/%s.git", c.URL, name),
+		RevName: revName,
 	}
 
-	tags, _ := repo.ShowRef(git.ShowRefOptions{Heads: false, Tags: true})
-
+	refInfoMap := map[string]*RefInfo{}
 	var mainOutput *BranchOutput
 	claimed := false
 	for _, revn := range config.Refs {
-		for _, head := range heads {
+		for _, head := range refs {
 			_, headName := filepath.Split(head.Refspec)
 			if revn != headName {
 				continue
 			}
+			refInfoMap[head.ID] = &RefInfo{
+				Refspec: strings.TrimPrefix(head.Refspec, "refs/"),
+				URL:     template.URL(fmt.Sprintf("/%s/tree/%s/index.html", name, revn)),
+			}
+
+			branchRepo := &RepoData{
+				Name:       name,
+				Desc:       config.Desc,
+				MaxCommits: config.MaxCommits,
+				SummaryURL: fmt.Sprintf("/%s/index.html", name),
+				TreeURL:    fmt.Sprintf("/%s/tree/%s/index.html", name, revn),
+				LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revn),
+				RefsURL:    fmt.Sprintf("/%s/refs.html", name),
+				CloneURL:   fmt.Sprintf("https://%s/%s.git", c.URL, name),
+				RevName: revn,
+			}
+
 			data := &PageData{
-				Branches: heads,
-				Tags:     tags,
-				Rev:      head,
-				RevName:  headName,
-				Repo:     repoData,
+				Rev:     head,
+				RevName: headName,
+				Repo:    branchRepo,
 			}
 
 			branchOutput := c.writeBranch(repo, data)
@@ -430,13 +453,37 @@ func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 		}
 	}
 
+	for _, ref := range refs {
+		if refInfoMap[ref.ID] != nil {
+			continue
+		}
+
+		refInfoMap[ref.ID] = &RefInfo{
+			Refspec: strings.TrimPrefix(ref.Refspec, "refs/"),
+		}
+	}
+
+	refInfoList := []*RefInfo{}
+	for _, val := range refInfoMap {
+		refInfoList = append(refInfoList, val)
+	}
+	sort.Slice(refInfoList, func(i, j int) bool {
+		urlI := refInfoList[i].URL
+		urlJ := refInfoList[j].URL
+		refI := refInfoList[i].Refspec
+		refJ := refInfoList[j].Refspec
+		if urlI == urlJ {
+			return refI < refJ
+		}
+		return urlI > urlJ
+	})
+
 	data := &PageData{
-		Branches: heads,
-		Tags:     tags,
 		Rev:      rev,
 		RevName:  revName,
 		Repo:     repoData,
 		Readme:   template.HTML(mainOutput.Readme),
+		Refs:     refInfoList,
 	}
 	writeRefs(data)
 	writeRootSummary(data)
@@ -466,6 +513,9 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 
 		logs = append(logs, &CommitData{
 			URL:    commitURL(pageData.Repo.Name, commit.ID.String()),
+			SummaryStr: commit.Summary(),
+			AuthorStr: commit.Author.Name,
+			WhenStr: timediff.TimeDiff(commit.Author.When),
 			Commit: commit,
 		})
 	}

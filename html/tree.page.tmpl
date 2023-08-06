@@ -5,24 +5,22 @@
 {{define "content"}}
   {{template "header" .}}
 
-  <table>
-    <tbody>
-    {{range .Data.Tree}}
-      <tr>
-        <td>
-          <a href="{{.URL}}">{{.Path}}</a>
-        </td>
-        <td>
-          <a href="{{.CommitURL}}">{{.Desc}}</a>
-        </td>
-        <td>
-          {{.When}}
-        </td>
-        <td class="mono font-bold">
+  <div>
+  {{range .Data.Tree}}
+    <div class="flex justify-between">
+      <div class="flex-1">
+        <a href="{{.URL}}">{{.Path}}</a>
+      </div>
+
+      <div class="flex">
+        <div>
+          <a href="{{.CommitURL}}">{{.When}}</a>
+        </div>
+        <div class="mono font-bold">
           L{{.NumLines}}
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
+        </div>
+      </div>
+    </div>
+  {{end}}
+  </div>
 {{end}}

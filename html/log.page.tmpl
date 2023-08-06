@@ -5,9 +5,18 @@
 {{define "content"}}
   {{template "header" .}}
 
+  <div>
   {{range .Data.Log}}
-  <p>
-    {{.Author.When}} <a href="{{.URL}}">{{.Summary}}</a> {{.Author.Name}}
-  </p>
+    <div class="box">
+      <div>
+        <a href="{{.URL}}">{{.SummaryStr}}</a>
+      </div>
+      <div>
+        <span>{{.AuthorStr}}</span>
+        <span>&nbsp;committed&nbsp;</span>
+        <span>{{.WhenStr}}</span>
+      </div>
+    </div>
   {{end}}
+  </div>
 {{end}}

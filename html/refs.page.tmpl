@@ -5,17 +5,14 @@
 {{define "content"}}
   {{template "header" .}}
 
-  <h2 class="text-md">branches</h2>
-  <ol>
-  {{range .Data.Branches}}
-    <li>{{.Refspec}}</li>
-  {{end}}
-  </ol>
-
-  <h2 class="text-md">tags</h2>
-  <ol>
-  {{range .Data.Tags}}
-    <li>{{.Refspec}}</li>
+  <h2 class="text-md font-bold">refs</h2>
+  <ul>
+  {{range .Data.Refs}}
+    {{if .URL}}
+      <li><a href="{{.URL}}">{{.Refspec}}</a></li>
+    {{else}}
+      <li>{{.Refspec}}</li>
+    {{end}}
   {{end}}
   </ol>
 {{end}}
