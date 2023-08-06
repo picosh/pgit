@@ -20,7 +20,7 @@ var defaultBranches = []string{"main", "master"}
 type RepoItemData struct {
 	URL        string
 	Name       string
-	Desc string
+	Desc       string
 	CommitDate string
 	LastCommit *git.Commit
 }
@@ -46,13 +46,13 @@ type CommitData struct {
 }
 
 type TreeItem struct {
-	NumLines int
-	URL      string
-	Path     string
-	Entry    *git.TreeEntry
+	NumLines  int
+	URL       string
+	Path      string
+	Entry     *git.TreeEntry
 	CommitURL string
-	Desc string
-	When string
+	Desc      string
+	When      string
 }
 
 type PageData struct {
@@ -68,7 +68,7 @@ type PageData struct {
 
 type CommitPageData struct {
 	CommitMsg template.HTML
-	CommitID string
+	CommitID  string
 	Commit    *CommitData
 	Diff      *DiffRender
 	Repo      *RepoData
@@ -348,6 +348,7 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData) {
 					content += fmt.Sprintf("%s\n", line.Content)
 				}
 			}
+			// set filename to something our `ParseText` recognizes (e.g. `.diff`)
 			finContent, err := pastes.ParseText("commit.diff", content)
 			bail(err)
 
@@ -358,7 +359,7 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData) {
 
 		commitData := &CommitPageData{
 			Commit:    commit,
-			CommitID: commit.ID.String()[:7],
+			CommitID:  commit.ID.String()[:7],
 			Diff:      rnd,
 			Repo:      pageData.Repo,
 			Parent:    parentID[:7],
@@ -482,7 +483,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		bail(err)
 
 		var lc *git.Commit
-		if (len(lastCommits) > 0) {
+		if len(lastCommits) > 0 {
 			lc = lastCommits[0]
 		}
 		entry.CommitURL = commitURL(pageData.Repo.Name, lc.ID.String())
@@ -545,7 +546,7 @@ func main() {
 		repoList = append(repoList, &RepoItemData{
 			URL:        url,
 			Name:       name,
-			Desc: r.Desc,
+			Desc:       r.Desc,
 			CommitDate: timediff.TimeDiff(mainOutput.LastCommit.Author.When),
 			LastCommit: mainOutput.LastCommit,
 		})
