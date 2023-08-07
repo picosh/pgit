@@ -116,7 +116,7 @@ type DiffRenderFile struct {
 
 type FileData struct {
 	Contents template.HTML
-	Name     string
+	Path     string
 }
 
 type RefInfo struct {
@@ -327,13 +327,14 @@ func writeHTMLTreeFiles(data *PageData) string {
 
 		file.IsTextFile = shared.IsTextFile(str)
 
+		contents := "binary file, cannot display"
 		if file.IsTextFile {
 			file.NumLines = len(strings.Split(str, "\n"))
+			contents, err = pastes.ParseText(file.Entry.Name(), string(b))
+			bail(err)
 		}
 
 		d := filepath.Dir(file.Path)
-		contents, err := pastes.ParseText(file.Entry.Name(), string(b))
-		bail(err)
 
 		nameLower := strings.ToLower(file.Entry.Name())
 		summary := readmeFile(data.Repo)
@@ -346,7 +347,7 @@ func writeHTMLTreeFiles(data *PageData) string {
 			Template: "./html/file.page.tmpl",
 			Data: &FileData{
 				Contents: template.HTML(contents),
-				Name:     file.Entry.Name(),
+				Path:     file.Path,
 			},
 			RepoName: data.Repo.Name,
 			Subdir:   filepath.Join("tree", data.RevName, "item", d),
