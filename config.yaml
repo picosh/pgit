@@ -5,11 +5,14 @@ repos:
       - main
       - v1.0.0
     desc: pico services - prose.sh, lists.sh, pastes.sh, imgs.sh, feeds.sh, pgs.sh
+    hide_tree_last_commit: true
   - path: /home/erock/dev/pico/pico-ops
     refs:
       - main
     desc: infra for pico services
+    hide_tree_last_commit: true
   - path: /home/erock/dev/app-ui
     refs:
       - main
+      - v50
     desc: aptible's paas web application

@@ -13,9 +13,12 @@
       </div>
 
       <div class="flex items-center gap">
+        {{if $.Repo.HideTreeLastCommit}}
+        {{else}}
         <div class="flex-1">
           <a href="{{.CommitURL}}" title="{{.Summary}}">{{.When}}</a>
         </div>
+        {{end}}
         <div class="tree-size">
           {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
         </div>
