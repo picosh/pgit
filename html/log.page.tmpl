@@ -8,10 +8,16 @@
   <div>
   {{range .Data.Log}}
     <div class="box">
-      <div>
-        <a href="{{.URL}}">{{.SummaryStr}}</a>
+      <div class="flex justify-between items-center">
+        <div>
+          <a href="{{.URL}}">{{.SummaryStr}}</a>
+        </div>
+        <div>
+          {{.ShortID}}
+        </div>
       </div>
-      <div>
+
+      <div class="flex items-center">
         <span>{{.AuthorStr}}</span>
         <span>&nbsp;committed&nbsp;</span>
         <span>{{.WhenStr}}</span>

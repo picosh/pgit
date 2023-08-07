@@ -9,9 +9,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
 	"github.com/mergestat/timediff"
 	"github.com/picosh/pico/pastes"
+	"github.com/picosh/pico/shared"
 	"github.com/spf13/viper"
 )
 
@@ -38,35 +40,39 @@ type RepoData struct {
 	RefsURL    string
 	CloneURL   string
 	MaxCommits int
-	RevName string
+	RevName    string
+	Readme     string
 }
 
 type CommitData struct {
 	SummaryStr string
-	URL string
-	WhenStr string
-	AuthorStr string
+	URL        string
+	WhenStr    string
+	AuthorStr  string
+	ShortID    string
 	*git.Commit
 }
 
 type TreeItem struct {
-	NumLines  int
-	URL       string
-	Path      string
-	Entry     *git.TreeEntry
-	CommitURL string
-	Desc      string
-	When      string
+	IsTextFile bool
+	Size       string
+	NumLines   int
+	URL        string
+	Path       string
+	Entry      *git.TreeEntry
+	CommitURL  string
+	Summary    string
+	When       string
 }
 
 type PageData struct {
-	Repo     *RepoData
-	Log      []*CommitData
-	Tree     []*TreeItem
-	Readme   template.HTML
-	Rev      *git.Reference
-	RevName  string
-	Refs     []*RefInfo
+	Repo    *RepoData
+	Log     []*CommitData
+	Tree    []*TreeItem
+	Readme  template.HTML
+	Rev     *git.Reference
+	RevName string
+	Refs    []*RefInfo
 }
 
 type CommitPageData struct {
@@ -107,6 +113,35 @@ type DiffRenderFile struct {
 	NumDeletions int
 }
 
+type FileData struct {
+	Contents template.HTML
+	Name     string
+}
+
+type RefInfo struct {
+	Refspec string
+	URL     template.URL
+}
+
+type BranchOutput struct {
+	Readme     string
+	LastCommit *git.Commit
+}
+
+type RepoConfig struct {
+	Path       string   `mapstructure:"path"`
+	Refs       []string `mapstructure:"refs"`
+	Desc       string   `mapstructure:"desc"`
+	MaxCommits int      `mapstructure:"max_commits"`
+	Readme     string   `mapstructure:"readme"`
+}
+
+type Config struct {
+	Repos []*RepoConfig `mapstructure:"repos"`
+	URL   string        `mapstructure:"url"`
+	Cache map[string]bool
+}
+
 func diffFileType(_type git.DiffFileType) string {
 	if _type == git.DiffFileAdd {
 		return "A"
@@ -127,6 +162,10 @@ func bail(err error) {
 	}
 }
 
+func toPretty(b int64) string {
+	return humanize.Bytes(uint64(b))
+}
+
 func commitURL(repo string, commitID string) string {
 	return fmt.Sprintf("/%s/commits/%s.html", repo, commitID)
 }
@@ -135,6 +174,15 @@ func repoName(root string) string {
 	_, file := filepath.Split(root)
 	return file
 }
+
+func readmeFile(repo *RepoData) string {
+	if repo.Readme == "" {
+		return "readme.md"
+	}
+
+	return strings.ToLower(repo.Readme)
+}
+
 func findDefaultBranch(config *RepoConfig, refs []*git.Reference) *git.Reference {
 	branches := config.Refs
 	if len(branches) == 0 {
@@ -165,6 +213,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 
 		if entry.IsBlob() {
 			aggregate = append(aggregate, &TreeItem{
+				Size:  toPretty(entry.Size()),
 				Path:  fname,
 				Entry: entry,
 				URL:   filepath.Join("/", "tree", branch, "item", fname),
@@ -188,12 +237,13 @@ func writeHtml(data *WriteData) {
 
 	outdir := viper.GetString("outdir")
 	dir := filepath.Join(outdir, data.RepoName, data.Subdir)
-	fmt.Println(dir)
-	fmt.Println(data.Name)
 	err = os.MkdirAll(dir, os.ModePerm)
 	bail(err)
 
-	w, err := os.OpenFile(filepath.Join(dir, data.Name), os.O_WRONLY|os.O_CREATE, 0755)
+	fp := filepath.Join(dir, data.Name)
+	fmt.Printf("writing (%s)\n", fp)
+
+	w, err := os.OpenFile(fp, os.O_WRONLY|os.O_CREATE, 0755)
 	bail(err)
 
 	err = ts.Execute(w, data)
@@ -213,11 +263,13 @@ func writeIndex(data *IndexPage) {
 
 	outdir := viper.GetString("outdir")
 	dir := filepath.Join(outdir)
-	fmt.Println(dir)
 	err = os.MkdirAll(dir, os.ModePerm)
 	bail(err)
 
-	w, err := os.OpenFile(filepath.Join(dir, "index.html"), os.O_WRONLY|os.O_CREATE, 0755)
+	fp := filepath.Join(dir, "index.html")
+	fmt.Printf("writing (%s)\n", fp)
+
+	w, err := os.OpenFile(fp, os.O_WRONLY|os.O_CREATE, 0755)
 	bail(err)
 
 	err = ts.Execute(w, data)
@@ -264,30 +316,36 @@ func writeRefs(data *PageData) {
 	})
 }
 
-type FileData struct {
-	Contents template.HTML
-}
-
 func writeHTMLTreeFiles(data *PageData) string {
 	readme := ""
 	for _, file := range data.Tree {
 		b, err := file.Entry.Blob().Bytes()
 		bail(err)
-		file.NumLines = len(strings.Split(string(b), "\n"))
+		str := string(b)
+
+		file.IsTextFile = shared.IsTextFile(str)
+
+		if file.IsTextFile {
+			file.NumLines = len(strings.Split(str, "\n"))
+		}
 
 		d := filepath.Dir(file.Path)
 		contents, err := pastes.ParseText(file.Entry.Name(), string(b))
 		bail(err)
 
 		nameLower := strings.ToLower(file.Entry.Name())
-		if nameLower == "readme.md" {
+		summary := readmeFile(data.Repo)
+		if nameLower == summary {
 			readme = contents
 		}
 
 		writeHtml(&WriteData{
 			Name:     fmt.Sprintf("%s.html", file.Entry.Name()),
 			Template: "./html/file.page.tmpl",
-			Data:     &FileData{Contents: template.HTML(contents)},
+			Data: &FileData{
+				Contents: template.HTML(contents),
+				Name:     file.Entry.Name(),
+			},
 			RepoName: data.Repo.Name,
 			Subdir:   filepath.Join("tree", data.RevName, "item", d),
 			Repo:     data.Repo,
@@ -381,11 +439,6 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData) {
 	}
 }
 
-type RefInfo struct {
-	Refspec string
-	URL     template.URL
-}
-
 func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 	repo, err := git.Open(config.Path)
 	bail(err)
@@ -410,7 +463,7 @@ func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 		LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revName),
 		RefsURL:    fmt.Sprintf("/%s/refs.html", name),
 		CloneURL:   fmt.Sprintf("https://%s/%s.git", c.URL, name),
-		RevName: revName,
+		RevName:    revName,
 	}
 
 	refInfoMap := map[string]*RefInfo{}
@@ -436,7 +489,7 @@ func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 				LogURL:     fmt.Sprintf("/%s/logs/%s/index.html", name, revn),
 				RefsURL:    fmt.Sprintf("/%s/refs.html", name),
 				CloneURL:   fmt.Sprintf("https://%s/%s.git", c.URL, name),
-				RevName: revn,
+				RevName:    revn,
 			}
 
 			data := &PageData{
@@ -479,20 +532,15 @@ func (c *Config) writeRepo(config *RepoConfig) *BranchOutput {
 	})
 
 	data := &PageData{
-		Rev:      rev,
-		RevName:  revName,
-		Repo:     repoData,
-		Readme:   template.HTML(mainOutput.Readme),
-		Refs:     refInfoList,
+		Rev:     rev,
+		RevName: revName,
+		Repo:    repoData,
+		Readme:  template.HTML(mainOutput.Readme),
+		Refs:    refInfoList,
 	}
 	writeRefs(data)
 	writeRootSummary(data)
 	return mainOutput
-}
-
-type BranchOutput struct {
-	Readme     string
-	LastCommit *git.Commit
 }
 
 func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOutput {
@@ -512,11 +560,12 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		}
 
 		logs = append(logs, &CommitData{
-			URL:    commitURL(pageData.Repo.Name, commit.ID.String()),
+			URL:        commitURL(pageData.Repo.Name, commit.ID.String()),
+			ShortID:    commit.ID.String()[:7],
 			SummaryStr: commit.Summary(),
-			AuthorStr: commit.Author.Name,
-			WhenStr: timediff.TimeDiff(commit.Author.When),
-			Commit: commit,
+			AuthorStr:  commit.Author.Name,
+			WhenStr:    timediff.TimeDiff(commit.Author.When),
+			Commit:     commit,
 		})
 	}
 
@@ -537,7 +586,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 			lc = lastCommits[0]
 		}
 		entry.CommitURL = commitURL(pageData.Repo.Name, lc.ID.String())
-		entry.Desc = lc.Summary()
+		entry.Summary = lc.Summary()
 		entry.When = timediff.TimeDiff(lc.Author.When)
 		entry.URL = filepath.Join(
 			"/",
@@ -560,18 +609,6 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 
 	output.Readme = readme
 	return output
-}
-
-type RepoConfig struct {
-	Path       string   `mapstructure:"path"`
-	Refs       []string `mapstructure:"refs"`
-	Desc       string   `mapstructure:"desc"`
-	MaxCommits int      `mapstructure:"max_commits"`
-}
-type Config struct {
-	Repos []*RepoConfig `mapstructure:"repos"`
-	URL   string        `mapstructure:"url"`
-	Cache map[string]bool
 }
 
 func main() {

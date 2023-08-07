@@ -7,17 +7,17 @@
 
   <div>
   {{range .Data.Tree}}
-    <div class="flex justify-between">
+    <div class="flex justify-between items-center gap my-sm border-b">
       <div class="flex-1">
         <a href="{{.URL}}">{{.Path}}</a>
       </div>
 
-      <div class="flex">
-        <div>
-          <a href="{{.CommitURL}}">{{.When}}</a>
+      <div class="flex items-center gap">
+        <div class="flex-1">
+          <a href="{{.CommitURL}}" title="{{.Summary}}">{{.When}}</a>
         </div>
-        <div class="mono font-bold">
-          L{{.NumLines}}
+        <div class="tree-size">
+          {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
         </div>
       </div>
     </div>

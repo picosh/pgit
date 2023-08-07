@@ -115,32 +115,6 @@ pre {
   background-color: var(--pre) !important;
 }
 
-.my {
-  margin: 1rem 0;
-}
-
-.mt {
-  margin-top: 1rem;
-}
-
-.my-sm {
-  margin: 5px 0;
-}
-
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo,
-    monospace;
-}
-
-.box {
-  font-size: 0.8rem;
-  border-radius: 5px;
-  padding: 1rem;
-  margin: 1rem 0;
-  overflow-x: auto;
-  background-color: var(--pre) !important;
-}
-
 small {
   font-size: 0.8rem;
 }
@@ -263,16 +237,25 @@ figure {
   margin: 0;
 }
 
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo,
+    monospace;
+}
+
+.box {
+  border-radius: 5px;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  background-color: var(--pre) !important;
+}
+
 .color-green {
   color: var(--success);
 }
 
 .color-red {
   color: var(--error);
-}
-
-.post-date {
-  width: 130px;
 }
 
 .text-grey {
@@ -315,10 +298,6 @@ figure {
   font-style: italic;
 }
 
-.inline {
-  display: inline;
-}
-
 .flex {
   display: flex;
 }
@@ -335,16 +314,8 @@ figure {
   margin-top: 0.5rem;
 }
 
-.mb {
-  margin-bottom: 0.5rem;
-}
-
-.mr {
-  margin-right: 0.5rem;
-}
-
-.ml {
-  margin-left: 0.5rem;
+.mt-lg {
+  margin-top: 1.35rem;
 }
 
 .my {
@@ -355,6 +326,11 @@ figure {
 .my-2 {
   margin-top: 1rem;
   margin-bottom: 1rem;
+}
+
+.my-sm {
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 .mx {
@@ -375,40 +351,24 @@ figure {
   flex: 1;
 }
 
-.layout-aside {
-  max-width: 50rem;
+.gap {
+  gap: 1rem;
 }
 
-.layout-aside aside {
-  width: 200px;
+.border-b {
+  border-bottom: 1px solid #666;
 }
 
-.layout-aside img {
-  border-radius: 5px;
+.tree-size {
+  width: 60px;
 }
 
-#readme {
-  display: none;
-}
-
-@media only screen and (max-width: 600px) {
+@media only screen and (max-width: 900px) {
   body {
     padding: 1rem;
   }
 
   header {
     margin: 0;
-  }
-
-  .layout-aside main {
-    flex-direction: column;
-  }
-
-  aside {
-    display: none;
-  }
-
-  #readme {
-    display: block;
   }
 }

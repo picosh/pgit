@@ -9,3 +9,7 @@ repos:
     refs:
       - main
     desc: infra for pico services
+  - path: /home/erock/dev/app-ui
+    refs:
+      - main
+    desc: aptible's paas web application
