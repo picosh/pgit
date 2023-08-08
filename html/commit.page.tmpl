@@ -6,29 +6,29 @@
 
   <dl>
     <dt>commit</dt>
-    <dd><a href="{{.Data.CommitURL}}">{{.Data.CommitID}}</a></dd>
+    <dd><a href="{{.CommitURL}}">{{.CommitID}}</a></dd>
 
     <dt>parent</dt>
-    <dd><a href="{{.Data.ParentURL}}">{{.Data.Parent}}</a></dd>
+    <dd><a href="{{.ParentURL}}">{{.Parent}}</a></dd>
 
     <dt>author</dt>
-    <dd>{{.Data.Commit.Author.Name}}</dd>
+    <dd>{{.Commit.Author.Name}}</dd>
 
     <dt>date</dt>
-    <dd>{{.Data.Commit.Author.When}}</dd>
+    <dd>{{.Commit.Author.When}}</dd>
   </dl>
 
-  <pre>{{.Data.Commit.Message}}</pre>
+  <pre>{{.Commit.Message}}</pre>
 
   <div class="box mono">
     <div>
-      <strong>{{.Data.Diff.NumFiles}}</strong> files changed,&nbsp;
-      <span class="color-green">+{{.Data.Diff.TotalAdditions}}</span>,
-      <span class="color-red">-{{.Data.Diff.TotalDeletions}}</span>
+      <strong>{{.Diff.NumFiles}}</strong> files changed,&nbsp;
+      <span class="color-green">+{{.Diff.TotalAdditions}}</span>,
+      <span class="color-red">-{{.Diff.TotalDeletions}}</span>
     </div>
 
     <div>
-    {{range .Data.Diff.Files}}
+    {{range .Diff.Files}}
       <div class="my-sm">
         <span>{{.FileType}}</span>
         <a href="#diff-{{.Name}}">{{.Name}}</a>
@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  {{range .Data.Diff.Files}}
+  {{range .Diff.Files}}
     <div id="diff-{{.Name}}" class="flex justify-between mono">
       <span>{{.FileType}} {{if eq .FileType "R"}}{{.OldName}} => {{end}}{{.Name}}</span>
       <div>

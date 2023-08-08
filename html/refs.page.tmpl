@@ -7,7 +7,7 @@
 
   <h2 class="text-md font-bold">refs</h2>
   <ul>
-  {{range .Data.Refs}}
+  {{range .Refs}}
     {{if .URL}}
       <li><a href="{{.URL}}">{{.Refspec}}</a></li>
     {{else}}
