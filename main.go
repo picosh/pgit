@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	html "html/template"
 	"math"
 	"os"
 	"path/filepath"
@@ -25,7 +24,6 @@ import (
 
 //go:embed html/*.tmpl
 var efs embed.FS
-var defaultBranches = []string{"main", "master"}
 
 type Config struct {
 	// required params
@@ -256,23 +254,6 @@ func readmeFile(repo *Config) string {
 	return strings.ToLower(repo.Readme)
 }
 
-func (c *Config) findDefaultBranch(refs []*git.Reference) *git.Reference {
-	branches := c.Refs
-	if len(branches) == 0 {
-		branches = defaultBranches
-	}
-
-	for _, def := range branches {
-		for _, ref := range refs {
-			if "refs/heads/"+def == ref.Refspec {
-				return ref
-			}
-		}
-	}
-
-	return nil
-}
-
 func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeItem) []*TreeItem {
 	entries, err := tree.Entries()
 	bail(err)
@@ -299,7 +280,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 }
 
 func (c *Config) writeHtml(writeData *WriteData) {
-	ts, err := html.ParseFS(
+	ts, err := template.ParseFS(
 		efs,
 		writeData.Template,
 		"html/header.partial.tmpl",
@@ -537,36 +518,45 @@ func (c *Config) writeRepo() *BranchOutput {
 	repo, err := git.Open(c.RepoPath)
 	bail(err)
 
-	name := repoName(c.RepoPath)
-
 	refs, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: true})
 	bail(err)
 
-	rev := c.findDefaultBranch(refs)
-	if rev == nil {
-		bail(fmt.Errorf("no default branch found"))
+	var first *git.Reference
+	fitRefs := []*git.Reference{}
+	for _, refStr := range c.Refs {
+		for _, ref := range refs {
+			rH := strings.Replace(ref.Refspec, "refs/heads/", "", 1)
+			rT := strings.Replace(rH, "refs/tags/", "", 1)
+			if rT == refStr {
+				if first == nil {
+					first = ref
+				}
+				fitRefs = append(fitRefs, ref)
+			}
+		}
 	}
-	_, revName := filepath.Split(rev.Refspec)
+
+	if first == nil {
+		bail(fmt.Errorf("could find find a git reference that matches criteria"))
+	}
+
+	_, revName := filepath.Split(first.Refspec)
 
 	refInfoMap := map[string]*RefInfo{}
 	mainOutput := &BranchOutput{}
 	claimed := false
-	for _, revn := range c.Refs {
-		for _, ref := range refs {
-			_, headName := filepath.Split(ref.Refspec)
-			if revn != headName {
-				continue
-			}
+		for _, ref := range fitRefs {
+			_, revn := filepath.Split(ref.Refspec)
 			refInfoMap[ref.ID] = &RefInfo{
 				Refspec: strings.TrimPrefix(ref.Refspec, "refs/"),
-				URL:     template.URL(fmt.Sprintf("/%s/tree/%s/index.html", name, revn)),
+				URL:     c.getTreeUrl(revn),
 			}
 
 			branchRepo := &RevData{
 				TreeURL: c.getTreeUrl(revn),
 				LogURL:  c.getLogsUrl(revn),
 				RevName: revn,
-				Ref: ref,
+				Ref:     ref,
 			}
 
 			data := &PageData{
@@ -581,7 +571,6 @@ func (c *Config) writeRepo() *BranchOutput {
 				claimed = true
 			}
 		}
-	}
 
 	for _, ref := range refs {
 		if refInfoMap[ref.ID] != nil {
@@ -703,18 +692,26 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 func main() {
 	var outdir = flag.String("out", "./public", "output directory (default: ./public)")
 	var rpath = flag.String("repo", ".", "path to git repo")
-	var refs = flag.String("refs", "HEAD", "path to git repo")
+	var refsFlag = flag.String("refs", "", "path to git repo")
 
 	flag.Parse()
 
-	repoPath := *rpath
-	// outdir
+	out, err := filepath.Abs(*outdir)
+	bail(err)
+	repoPath, err := filepath.Abs(*rpath)
+	bail(err)
+
+	refs := strings.Split(*refsFlag, ",")
+	if len(refs) == 1 && refs[0] == "" {
+		refs = []string{"main", "master"}
+	}
+
 	config := &Config{
-		Outdir:   *outdir,
+		Outdir:   out,
 		RepoPath: repoPath,
 		RepoName: repoName(repoPath),
 		Cache:    make(map[string]bool),
-		Refs:     strings.Split(*refs, ","),
+		Refs:     refs,
 	}
 
 	fmt.Println(config.Outdir)
@@ -723,6 +720,6 @@ func main() {
 	fmt.Println(config.Refs)
 
 	config.writeRepo()
-	url := filepath.Join("/", config.RepoName, "index.html")
+	url := filepath.Join(config.Outdir, config.RepoName, "index.html")
 	fmt.Println(url)
 }
