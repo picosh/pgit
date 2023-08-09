@@ -32,8 +32,10 @@ type Config struct {
 	RepoPath string
 
 	// optional params
-	// generate logs and trees based on the refs provided
+	// generate logs and trees based on the git references provided
 	Refs []string
+	// generate logs anad tree based on the git revisions provided
+	Revs []string
 	// description of repo used in the header of site
 	Desc string
 	// maximum number of commits that we will process in descending order
@@ -57,11 +59,12 @@ type Config struct {
 	RepoName string
 }
 
+// revision data
 type RevData struct {
+	ID      string
 	RevName string
 	TreeURL template.URL
 	LogURL  template.URL
-	Ref     *git.Reference
 }
 
 type CommitData struct {
@@ -77,12 +80,12 @@ type TreeItem struct {
 	IsTextFile bool
 	Size       string
 	NumLines   int
-	URL        string
 	Path       string
-	Entry      *git.TreeEntry
+	URL        template.URL
 	CommitURL  template.URL
 	Summary    string
 	When       string
+	Entry      *git.TreeEntry
 }
 
 type DiffRender struct {
@@ -271,7 +274,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 				Size:  toPretty(entry.Size()),
 				Path:  fname,
 				Entry: entry,
-				URL:   filepath.Join("/", "tree", branch, "item", fname),
+				URL:   template.URL(filepath.Join("/", "tree", branch, "item", fname)),
 			})
 		}
 	}
@@ -514,6 +517,10 @@ func (c *Config) getURLs() *SiteURLs {
 	}
 }
 
+func getShortID(id string) string {
+	return id[:7]
+}
+
 func (c *Config) writeRepo() *BranchOutput {
 	repo, err := git.Open(c.RepoPath)
 	bail(err)
@@ -521,57 +528,72 @@ func (c *Config) writeRepo() *BranchOutput {
 	refs, err := repo.ShowRef(git.ShowRefOptions{Heads: true, Tags: true})
 	bail(err)
 
-	var first *git.Reference
-	fitRefs := []*git.Reference{}
+	var first *RevData
+	revs := []*RevData{}
 	for _, refStr := range c.Refs {
 		for _, ref := range refs {
-			rH := strings.Replace(ref.Refspec, "refs/heads/", "", 1)
-			rT := strings.Replace(rH, "refs/tags/", "", 1)
-			if rT == refStr {
-				if first == nil {
-					first = ref
-				}
-				fitRefs = append(fitRefs, ref)
+			refName := git.RefShortName(ref.Refspec)
+			if refName != refStr {
+				continue
 			}
+
+			data := &RevData{
+				ID:      ref.ID,
+				RevName: refName,
+				TreeURL: c.getTreeUrl(refName),
+				LogURL:  c.getLogsUrl(refName),
+			}
+			if first == nil {
+				first = data
+			}
+			revs = append(revs, data)
 		}
+	}
+
+	for _, revStr := range c.Revs {
+		fullRevID, err := repo.RevParse(revStr)
+		bail(err)
+
+		revName := getShortID(fullRevID)
+		data := &RevData{
+			ID:      fullRevID,
+			RevName: revName,
+			TreeURL: c.getTreeUrl(revName),
+			LogURL:  c.getLogsUrl(revName),
+		}
+		if first == nil {
+			first = data
+		}
+		revs = append(revs, data)
 	}
 
 	if first == nil {
 		bail(fmt.Errorf("could find find a git reference that matches criteria"))
 	}
 
-	_, revName := filepath.Split(first.Refspec)
-
 	refInfoMap := map[string]*RefInfo{}
 	mainOutput := &BranchOutput{}
 	claimed := false
-		for _, ref := range fitRefs {
-			_, revn := filepath.Split(ref.Refspec)
-			refInfoMap[ref.ID] = &RefInfo{
-				Refspec: strings.TrimPrefix(ref.Refspec, "refs/"),
-				URL:     c.getTreeUrl(revn),
-			}
-
-			branchRepo := &RevData{
-				TreeURL: c.getTreeUrl(revn),
-				LogURL:  c.getLogsUrl(revn),
-				RevName: revn,
-				Ref:     ref,
-			}
-
-			data := &PageData{
-				Repo:     c,
-				RevData:  branchRepo,
-				SiteURLs: c.getURLs(),
-			}
-
-			branchOutput := c.writeBranch(repo, data)
-			if !claimed {
-				mainOutput = branchOutput
-				claimed = true
-			}
+	for _, revData := range revs {
+		refInfoMap[revData.ID] = &RefInfo{
+			Refspec: revData.RevName,
+			URL:     revData.TreeURL,
 		}
 
+		data := &PageData{
+			Repo:     c,
+			RevData:  revData,
+			SiteURLs: c.getURLs(),
+		}
+
+		branchOutput := c.writeBranch(repo, data)
+		if !claimed {
+			mainOutput = branchOutput
+			claimed = true
+		}
+	}
+
+	// loop through ALL refs that don't have URLs
 	for _, ref := range refs {
 		if refInfoMap[ref.ID] != nil {
 			continue
@@ -598,9 +620,9 @@ func (c *Config) writeRepo() *BranchOutput {
 	})
 
 	revData := &RevData{
-		TreeURL: c.getTreeUrl(revName),
-		LogURL:  c.getLogsUrl(revName),
-		RevName: revName,
+		TreeURL: c.getTreeUrl(first.RevName),
+		LogURL:  c.getLogsUrl(first.RevName),
+		RevName: first.RevName,
 	}
 
 	data := &PageData{
@@ -622,7 +644,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		pageSize = 5000
 	}
 
-	commits, err := repo.CommitsByPage(pageData.RevData.Ref.ID, 0, pageSize)
+	commits, err := repo.CommitsByPage(pageData.RevData.ID, 0, pageSize)
 	bail(err)
 
 	logs := []*CommitData{}
@@ -641,7 +663,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		})
 	}
 
-	tree, err := repo.LsTree(pageData.RevData.Ref.ID)
+	tree, err := repo.LsTree(pageData.RevData.ID)
 	bail(err)
 
 	entries := []*TreeItem{}
@@ -654,7 +676,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		if pageData.Repo.HideTreeLastCommit {
 			fmt.Println("skipping finding last commit for each file")
 		} else {
-			lastCommits, err = repo.RevList([]string{pageData.RevData.Ref.Refspec}, git.RevListOptions{
+			lastCommits, err = repo.RevList([]string{pageData.RevData.ID}, git.RevListOptions{
 				Path:           entry.Path,
 				CommandOptions: git.CommandOptions{Args: []string{"-1"}},
 			})
@@ -668,14 +690,14 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 			entry.Summary = lc.Summary()
 			entry.When = timediff.TimeDiff(lc.Author.When)
 		}
-		entry.URL = filepath.Join(
+		entry.URL = template.URL(filepath.Join(
 			"/",
 			c.RepoName,
 			"tree",
 			pageData.RevData.RevName,
 			"item",
 			fmt.Sprintf("%s.html", entry.Path),
-		)
+		))
 	}
 
 	fmt.Printf("compilation complete (%s) branch (%s)\n", c.RepoName, pageData.RevData.RevName)
@@ -690,9 +712,10 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 }
 
 func main() {
-	var outdir = flag.String("out", "./public", "output directory (default: ./public)")
+	var outdir = flag.String("out", "./public", "output directory")
 	var rpath = flag.String("repo", ".", "path to git repo")
-	var refsFlag = flag.String("refs", "", "path to git repo")
+	var refsFlag = flag.String("refs", "", "list of refs to generate logs and tree (e.g. main,v1)")
+	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. c69f86f,7415be1")
 
 	flag.Parse()
 
@@ -703,7 +726,12 @@ func main() {
 
 	refs := strings.Split(*refsFlag, ",")
 	if len(refs) == 1 && refs[0] == "" {
-		refs = []string{"main", "master"}
+		refs = []string{}
+	}
+
+	revs := strings.Split(*revsFlag, ",")
+	if len(revs) == 1 && revs[0] == "" {
+		revs = []string{}
 	}
 
 	config := &Config{
@@ -712,14 +740,10 @@ func main() {
 		RepoName: repoName(repoPath),
 		Cache:    make(map[string]bool),
 		Refs:     refs,
+		Revs:     revs,
 	}
 
-	fmt.Println(config.Outdir)
-	fmt.Println(config.RepoPath)
-	fmt.Println(config.RepoName)
-	fmt.Println(config.Refs)
-
 	config.writeRepo()
-	url := filepath.Join(config.Outdir, config.RepoName, "index.html")
+	url := filepath.Join("/", config.RepoName, "index.html")
 	fmt.Println(url)
 }
