@@ -21,6 +21,7 @@ import (
 	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
 	"github.com/mergestat/timediff"
+	"go.uber.org/zap"
 )
 
 //go:embed html/*.tmpl
@@ -48,8 +49,6 @@ type Config struct {
 	// We offer a way to disable showing the latest commit in the output
 	// for those who want a faster build time
 	HideTreeLastCommit bool
-	// chroma style
-	Theme *chroma.Style
 
 	// user-defined urls
 	HomeUrl  template.URL
@@ -60,6 +59,10 @@ type Config struct {
 	Cache map[string]bool
 	// pretty name for the repo
 	RepoName string
+	// logger
+	Logger *zap.SugaredLogger
+	// chroma style
+	Theme *chroma.Style
 }
 
 // revision data
@@ -307,7 +310,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 
 	fp := filepath.Join(dir, writeData.Filename)
-	fmt.Printf("writing (%s)\n", fp)
+	c.Logger.Infof("writing (%s)", fp)
 
 	w, err := os.OpenFile(fp, os.O_WRONLY|os.O_CREATE, 0755)
 	bail(err)
@@ -682,7 +685,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		var lastCommits []*git.Commit
 		// `git rev-list` is pretty expensive here, so we have a flag to disable
 		if pageData.Repo.HideTreeLastCommit {
-			fmt.Println("skipping finding last commit for each file")
+			c.Logger.Info("skipping finding last commit for each file")
 		} else {
 			lastCommits, err = repo.RevList([]string{pageData.RevData.ID}, git.RevListOptions{
 				Path:           entry.Path,
@@ -708,7 +711,11 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 		))
 	}
 
-	fmt.Printf("compilation complete (%s) branch (%s)\n", c.RepoName, pageData.RevData.RevName)
+	c.Logger.Infof(
+		"compilation complete (%s) branch (%s)",
+		c.RepoName,
+		pageData.RevData.RevName,
+	)
 
 	c.writeLog(pageData, logs)
 	c.writeLogDiffs(repo, pageData, logs)
@@ -745,6 +752,14 @@ func main() {
 
 	theme := styles.Get(*themeFlag)
 
+	lg, err := zap.NewProduction()
+	if err != nil {
+		bail(err)
+	}
+
+	logger := lg.Sugar()
+
+
 	config := &Config{
 		Outdir:   out,
 		RepoPath: repoPath,
@@ -753,9 +768,11 @@ func main() {
 		Refs:     refs,
 		Revs:     revs,
 		Theme:    theme,
+		Logger: logger,
 	}
+	config.Logger.Infof("%+v", config)
 
 	config.writeRepo()
 	url := filepath.Join("/", config.RepoName, "index.html")
-	fmt.Println(url)
+	config.Logger.Info(url)
 }
