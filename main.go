@@ -759,7 +759,6 @@ func main() {
 
 	logger := lg.Sugar()
 
-
 	config := &Config{
 		Outdir:   out,
 		RepoPath: repoPath,
@@ -768,7 +767,7 @@ func main() {
 		Refs:     refs,
 		Revs:     revs,
 		Theme:    theme,
-		Logger: logger,
+		Logger:   logger,
 	}
 	config.Logger.Infof("%+v", config)
 
