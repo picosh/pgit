@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/alecthomas/chroma"
 	formatterHtml "github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
 	"github.com/alecthomas/chroma/styles"
@@ -47,6 +48,8 @@ type Config struct {
 	// We offer a way to disable showing the latest commit in the output
 	// for those who want a faster build time
 	HideTreeLastCommit bool
+	// chroma style
+	Theme *chroma.Style
 
 	// user-defined urls
 	HomeUrl  template.URL
@@ -116,6 +119,13 @@ type BranchOutput struct {
 	LastCommit *git.Commit
 }
 
+type SiteURLs struct {
+	RootURL    template.URL
+	CloneURL   template.URL
+	SummaryURL template.URL
+	RefsURL    template.URL
+}
+
 type PageData struct {
 	Repo     *Config
 	SiteURLs *SiteURLs
@@ -166,6 +176,12 @@ type WriteData struct {
 	Data     interface{}
 }
 
+func bail(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func diffFileType(_type git.DiffFileType) string {
 	if _type == git.DiffFileAdd {
 		return "A"
@@ -180,13 +196,8 @@ func diffFileType(_type git.DiffFileType) string {
 	return ""
 }
 
-func bail(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func parseText(filename string, text string) (string, error) {
+// converts contents of files in git tree to pretty formatted code
+func parseText(filename string, text string, style *chroma.Style) (string, error) {
 	formatter := formatterHtml.New(
 		formatterHtml.WithLineNumbers(true),
 		formatterHtml.LinkableLineNumbers(true, ""),
@@ -204,7 +215,7 @@ func parseText(filename string, text string) (string, error) {
 		return text, err
 	}
 	var buf bytes.Buffer
-	err = formatter.Format(&buf, styles.Dracula, iterator)
+	err = formatter.Format(&buf, style, iterator)
 	if err != nil {
 		return text, err
 	}
@@ -363,7 +374,7 @@ func (c *Config) writeHTMLTreeFiles(pageData *PageData, tree []*TreeItem) string
 		contents := "binary file, cannot display"
 		if file.IsTextFile {
 			file.NumLines = len(strings.Split(str, "\n"))
-			contents, err = parseText(file.Entry.Name(), string(b))
+			contents, err = parseText(file.Entry.Name(), string(b), c.Theme)
 			bail(err)
 		}
 
@@ -444,7 +455,7 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 				}
 			}
 			// set filename to something our `ParseText` recognizes (e.g. `.diff`)
-			finContent, err := parseText("commit.diff", content)
+			finContent, err := parseText("commit.diff", content, c.Theme)
 			bail(err)
 
 			fl.Content = template.HTML(finContent)
@@ -469,13 +480,6 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 			Data:     commitData,
 		})
 	}
-}
-
-type SiteURLs struct {
-	RootURL    template.URL
-	CloneURL   template.URL
-	SummaryURL template.URL
-	RefsURL    template.URL
 }
 
 func (c *Config) getCloneURL() template.URL {
@@ -594,6 +598,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	}
 
 	// loop through ALL refs that don't have URLs
+	// and add them to the map
 	for _, ref := range refs {
 		if refInfoMap[ref.ID] != nil {
 			continue
@@ -604,6 +609,7 @@ func (c *Config) writeRepo() *BranchOutput {
 		}
 	}
 
+	// gather lists of refs to display on refs.html page
 	refInfoList := []*RefInfo{}
 	for _, val := range refInfoMap {
 		refInfoList = append(refInfoList, val)
@@ -619,6 +625,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		return urlI > urlJ
 	})
 
+	// use the first revision in our list to generate
+	// the root summary, logs, and tree the user can click
 	revData := &RevData{
 		TreeURL: c.getTreeUrl(first.RevName),
 		LogURL:  c.getLogsUrl(first.RevName),
@@ -716,6 +724,7 @@ func main() {
 	var rpath = flag.String("repo", ".", "path to git repo")
 	var refsFlag = flag.String("refs", "", "list of refs to generate logs and tree (e.g. main,v1)")
 	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. c69f86f,7415be1")
+	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 
 	flag.Parse()
 
@@ -734,6 +743,8 @@ func main() {
 		revs = []string{}
 	}
 
+	theme := styles.Get(*themeFlag)
+
 	config := &Config{
 		Outdir:   out,
 		RepoPath: repoPath,
@@ -741,6 +752,7 @@ func main() {
 		Cache:    make(map[string]bool),
 		Refs:     refs,
 		Revs:     revs,
+		Theme:    theme,
 	}
 
 	config.writeRepo()
