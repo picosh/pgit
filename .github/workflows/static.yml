@@ -13,8 +13,9 @@ jobs:
       - run: go install github.com/picosh/pgit
       - run: pgit --out ./public --label pgit --revs main,HEAD
       - run: pgit --out ./public --assets
+      - run: ssh -V
       - name: upload to pgs
         run: |
           echo -e "${{ secrets.PRIVATE_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -r ./public/* erock@pgs.sh:/git-${{ steps.vars.outputs.sha_short }}
+          scp -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -r ./public/* erock@pgs.sh:/git-${{ steps.vars.outputs.sha_short }}
