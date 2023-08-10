@@ -1,6 +1,8 @@
 name: static
-on: push
-
+on:
+  push:
+    branches:
+      - main
 jobs:
   static:
     runs-on: ubuntu-latest
@@ -11,7 +13,7 @@ jobs:
           go-version: '1.20'
       - run: go get github.com/picosh/pgit
       - run: go install github.com/picosh/pgit
-      - run: pgit --out ./public --label pgit --revs main,HEAD
+      - run: pgit --out ./public --label pgit --revs main
       - run: pgit --out ./public --assets
       - run: ssh -V
       - name: Set outputs
@@ -21,4 +23,4 @@ jobs:
         run: |
           echo -e "${{ secrets.PRIVATE_KEY }}" >__TEMP_INPUT_KEY_FILE
           chmod 600 __TEMP_INPUT_KEY_FILE
-          scp -s -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -r ./public/* erock@pgs.sh:/git-${{ steps.vars.outputs.sha_short }}
+          scp -s -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -r ./public/* erock@pgs.sh:/git
