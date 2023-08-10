@@ -14,14 +14,14 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: '1.20'
-      - run: go get github.com/picosh/pgit
-      - run: go install github.com/picosh/pgit
-      - run: pgit --out ./public --label pgit --desc "static site generator for git" --clone-url "https://github.com/picosh/pgit.git" --revs main
-      - run: pgit --out ./public --assets
-      - run: ssh -V
-      - name: Set outputs
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: install pgit
+        run: |
+          go get github.com/picosh/pgit
+          go install github.com/picosh/pgit
+      - name: generate site
+        run: |
+          pgit --out ./public --label pgit --desc "static site generator for git" --clone-url "https://github.com/picosh/pgit.git" --revs main
+          pgit --out ./public --assets
       - name: upload to pgs
         run: |
           echo -e "${{ secrets.PRIVATE_KEY }}" >__TEMP_INPUT_KEY_FILE
