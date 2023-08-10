@@ -18,10 +18,7 @@ jobs:
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: upload to pgs
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: pgs.sh
-          username: erock
-          key: ${{ secrets.PRIVATE_KEY }}
-          source: "public/*"
-          target: /git-${{ steps.vars.outputs.sha_short }}
+        run: |
+          echo -e "${{ secrets.PRIVATE_KEY }}" >__TEMP_INPUT_KEY_FILE
+          chmod 600 __TEMP_INPUT_KEY_FILE
+          scp -s -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -r ./public/* erock@pgs.sh:/git-${{ steps.vars.outputs.sha_short }}
