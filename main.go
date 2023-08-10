@@ -34,8 +34,6 @@ type Config struct {
 	RepoPath string
 
 	// optional params
-	// generate logs and trees based on the git references provided
-	Refs []string
 	// generate logs anad tree based on the git revisions provided
 	Revs []string
 	// description of repo used in the header of site
@@ -73,12 +71,18 @@ type RevData struct {
 	LogURL  template.URL
 }
 
+type TagData struct {
+	Name string
+	URL template.URL
+}
+
 type CommitData struct {
 	SummaryStr string
 	URL        template.URL
 	WhenStr    string
 	AuthorStr  string
 	ShortID    string
+	Refs []*RefInfo
 	*git.Commit
 }
 
@@ -113,6 +117,7 @@ type DiffRenderFile struct {
 }
 
 type RefInfo struct {
+	ID string
 	Refspec string
 	URL     template.URL
 }
@@ -408,6 +413,7 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 		commitID := commit.ID.String()
 
 		if c.Cache[commitID] {
+			c.Logger.Infof("(%s) commit file already generated, skipping", getShortID(commitID))
 			continue
 		} else {
 			c.Cache[commitID] = true
@@ -469,9 +475,9 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 		commitData := &CommitPageData{
 			PageData:  pageData,
 			Commit:    commit,
-			CommitID:  commit.ID.String()[:7],
+			CommitID:  getShortID(commitID),
 			Diff:      rnd,
-			Parent:    parentID[:7],
+			Parent:    getShortID(parentID),
 			CommitURL: c.getCommitURL(commitID),
 			ParentURL: c.getCommitURL(parentID),
 		}
@@ -537,31 +543,19 @@ func (c *Config) writeRepo() *BranchOutput {
 
 	var first *RevData
 	revs := []*RevData{}
-	for _, refStr := range c.Refs {
-		for _, ref := range refs {
-			refName := git.RefShortName(ref.Refspec)
-			if refName != refStr {
-				continue
-			}
-
-			data := &RevData{
-				ID:      ref.ID,
-				RevName: refName,
-				TreeURL: c.getTreeUrl(refName),
-				LogURL:  c.getLogsUrl(refName),
-			}
-			if first == nil {
-				first = data
-			}
-			revs = append(revs, data)
-		}
-	}
-
 	for _, revStr := range c.Revs {
 		fullRevID, err := repo.RevParse(revStr)
 		bail(err)
 
 		revName := getShortID(fullRevID)
+		// if it's a reference then label it as such
+		for _, ref := range refs {
+			if revStr == git.RefShortName(ref.Refspec) || revStr == ref.Refspec {
+				revName = revStr
+				break
+			}
+		}
+
 		data := &RevData{
 			ID:      fullRevID,
 			RevName: revName,
@@ -582,33 +576,24 @@ func (c *Config) writeRepo() *BranchOutput {
 	mainOutput := &BranchOutput{}
 	claimed := false
 	for _, revData := range revs {
-		refInfoMap[revData.ID] = &RefInfo{
+		refInfoMap[revData.RevName] = &RefInfo{
+			ID: revData.ID,
 			Refspec: revData.RevName,
 			URL:     revData.TreeURL,
-		}
-
-		data := &PageData{
-			Repo:     c,
-			RevData:  revData,
-			SiteURLs: c.getURLs(),
-		}
-
-		branchOutput := c.writeBranch(repo, data)
-		if !claimed {
-			mainOutput = branchOutput
-			claimed = true
 		}
 	}
 
 	// loop through ALL refs that don't have URLs
 	// and add them to the map
 	for _, ref := range refs {
-		if refInfoMap[ref.ID] != nil {
+		refspec := git.RefShortName(ref.Refspec)
+		if refInfoMap[refspec] != nil {
 			continue
 		}
 
-		refInfoMap[ref.ID] = &RefInfo{
-			Refspec: strings.TrimPrefix(ref.Refspec, "refs/"),
+		refInfoMap[refspec] = &RefInfo{
+			ID: ref.ID,
+			Refspec: refspec,
 		}
 	}
 
@@ -628,6 +613,20 @@ func (c *Config) writeRepo() *BranchOutput {
 		return urlI > urlJ
 	})
 
+	for _, revData := range revs {
+	data := &PageData{
+			Repo:     c,
+			RevData:  revData,
+			SiteURLs: c.getURLs(),
+		}
+
+		branchOutput := c.writeBranch(repo, data, refInfoList)
+		if !claimed {
+			mainOutput = branchOutput
+			claimed = true
+		}
+	}
+
 	// use the first revision in our list to generate
 	// the root summary, logs, and tree the user can click
 	revData := &RevData{
@@ -646,7 +645,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	return mainOutput
 }
 
-func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOutput {
+func (c *Config) writeBranch(repo *git.Repository, pageData *PageData, refs []*RefInfo) *BranchOutput {
 	fmt.Printf("compiling (%s) branch (%s)\n", c.RepoName, pageData.RevData.RevName)
 
 	output := &BranchOutput{}
@@ -664,13 +663,21 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 			output.LastCommit = commit
 		}
 
+		tags := []*RefInfo{}
+		for _, ref := range refs {
+			if commit.ID.String() == ref.ID {
+				tags = append(tags, ref)
+			}
+		}
+
 		logs = append(logs, &CommitData{
 			URL:        c.getCommitURL(commit.ID.String()),
-			ShortID:    commit.ID.String()[:7],
+			ShortID:    getShortID(commit.ID.String()),
 			SummaryStr: commit.Summary(),
 			AuthorStr:  commit.Author.Name,
 			WhenStr:    timediff.TimeDiff(commit.Author.When),
 			Commit:     commit,
+			Refs: tags,
 		})
 	}
 
@@ -729,8 +736,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData) *BranchOu
 func main() {
 	var outdir = flag.String("out", "./public", "output directory")
 	var rpath = flag.String("repo", ".", "path to git repo")
-	var refsFlag = flag.String("refs", "", "list of refs to generate logs and tree (e.g. main,v1)")
-	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. c69f86f,7415be1")
+	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD")
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 
 	flag.Parse()
@@ -740,14 +746,13 @@ func main() {
 	repoPath, err := filepath.Abs(*rpath)
 	bail(err)
 
-	refs := strings.Split(*refsFlag, ",")
-	if len(refs) == 1 && refs[0] == "" {
-		refs = []string{}
-	}
-
 	revs := strings.Split(*revsFlag, ",")
 	if len(revs) == 1 && revs[0] == "" {
 		revs = []string{}
+	}
+
+	if len(revs) == 0 {
+		bail(fmt.Errorf("you must provide --revs"))
 	}
 
 	theme := styles.Get(*themeFlag)
@@ -764,7 +769,6 @@ func main() {
 		RepoPath: repoPath,
 		RepoName: repoName(repoPath),
 		Cache:    make(map[string]bool),
-		Refs:     refs,
 		Revs:     revs,
 		Theme:    theme,
 		Logger:   logger,

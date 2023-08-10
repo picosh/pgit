@@ -6,6 +6,7 @@
   {{template "header" .}}
 
   <h2 class="text-md font-bold">refs</h2>
+
   <ul>
   {{range .Refs}}
     {{if .URL}}
@@ -14,5 +15,5 @@
       <li>{{.Refspec}}</li>
     {{end}}
   {{end}}
-  </ol>
+  </ul>
 {{end}}

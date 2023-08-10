@@ -12,8 +12,16 @@
         <div>
           <a href="{{.URL}}">{{.SummaryStr}}</a>
         </div>
-        <div>
+        <div class="flex gap">
           {{.ShortID}}
+
+          {{range .Refs}}
+            {{if .URL}}
+              <a href="{{.URL}}">({{.Refspec}})</a>
+            {{else}}
+              ({{.Refspec}})
+            {{end}}
+          {{end}}
         </div>
       </div>
 
