@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        # need entire history
+        fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
           go-version: '1.20'

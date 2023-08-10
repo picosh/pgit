@@ -759,6 +759,8 @@ func main() {
 	var assetFlag = flag.Bool("assets", false, "copy static assets to --out")
 	var cloneFlag = flag.String("clone-url", "", "git clone URL")
 	var descFlag = flag.String("desc", "", "description for repo")
+	var maxCommitsFlag = flag.Int("max-commits", 0, "maximum number of commits to generate")
+	var hideTreeLastCommitFlag = flag.Bool("hide-tree-last-commit", false, "dont calculate last commit for each file in the tree")
 
 	flag.Parse()
 
@@ -787,15 +789,17 @@ func main() {
 	}
 
 	config := &Config{
-		Outdir:   out,
-		RepoPath: repoPath,
-		RepoName: label,
-		Cache:    make(map[string]bool),
-		Revs:     revs,
-		Theme:    theme,
-		Logger:   logger,
-		CloneURL: template.URL(*cloneFlag),
-		Desc:     *descFlag,
+		Outdir:             out,
+		RepoPath:           repoPath,
+		RepoName:           label,
+		Cache:              make(map[string]bool),
+		Revs:               revs,
+		Theme:              theme,
+		Logger:             logger,
+		CloneURL:           template.URL(*cloneFlag),
+		Desc:               *descFlag,
+		MaxCommits:         *maxCommitsFlag,
+		HideTreeLastCommit: *hideTreeLastCommitFlag,
 	}
 	config.Logger.Infof("%+v", config)
 
