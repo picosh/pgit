@@ -13,7 +13,7 @@ jobs:
           go-version: '1.20'
       - run: go get github.com/picosh/pgit
       - run: go install github.com/picosh/pgit
-      - run: pgit --out ./public --label pgit --revs main
+      - run: pgit --out ./public --label pgit --desc "static site generator for git" --clone-url "https://github.com/picosh/pgit.git" --revs main
       - run: pgit --out ./public --assets
       - run: ssh -V
       - name: Set outputs
