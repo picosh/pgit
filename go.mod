@@ -1,4 +1,4 @@
-module sr.ht/~erock/gemgit
+module github.com/picosh/pgit
 
 go 1.18
 
