@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -23,6 +24,12 @@ import (
 	"github.com/mergestat/timediff"
 	"go.uber.org/zap"
 )
+
+//go:embed static/main.css
+var mainCss []byte
+
+//go:embed static/syntax.css
+var syntaxCss []byte
 
 //go:embed html/*.tmpl
 var efs embed.FS
@@ -317,11 +324,17 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	fp := filepath.Join(dir, writeData.Filename)
 	c.Logger.Infof("writing (%s)", fp)
 
-	w, err := os.OpenFile(fp, os.O_WRONLY|os.O_CREATE, 0755)
+	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	bail(err)
 
 	err = ts.Execute(w, writeData.Data)
 	bail(err)
+}
+
+func (c *Config) copyStatic(dst string, data []byte) {
+	c.Logger.Infof("writing (%s)", dst)
+    err := ioutil.WriteFile(dst, data, 0755)
+    bail(err)
 }
 
 func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
@@ -742,6 +755,8 @@ func main() {
 	var rpath = flag.String("repo", ".", "path to git repo")
 	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD")
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
+	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
+	var assetFlag = flag.Bool("assets", false, "copy static assets to --out")
 
 	flag.Parse()
 
@@ -749,15 +764,6 @@ func main() {
 	bail(err)
 	repoPath, err := filepath.Abs(*rpath)
 	bail(err)
-
-	revs := strings.Split(*revsFlag, ",")
-	if len(revs) == 1 && revs[0] == "" {
-		revs = []string{}
-	}
-
-	if len(revs) == 0 {
-		bail(fmt.Errorf("you must provide --revs"))
-	}
 
 	theme := styles.Get(*themeFlag)
 
@@ -768,10 +774,20 @@ func main() {
 
 	logger := lg.Sugar()
 
+	label := repoName(repoPath)
+	if *labelFlag != "" {
+		label = *labelFlag
+	}
+
+	revs := strings.Split(*revsFlag, ",")
+	if len(revs) == 1 && revs[0] == "" {
+		revs = []string{}
+	}
+
 	config := &Config{
 		Outdir:   out,
 		RepoPath: repoPath,
-		RepoName: repoName(repoPath),
+		RepoName: label,
 		Cache:    make(map[string]bool),
 		Revs:     revs,
 		Theme:    theme,
@@ -779,7 +795,20 @@ func main() {
 	}
 	config.Logger.Infof("%+v", config)
 
+	writeAssets := *assetFlag
+	if writeAssets {
+		config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
+		config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
+		return
+	}
+
+	if len(revs) == 0 {
+		bail(fmt.Errorf("you must provide --revs"))
+	}
+
 	config.writeRepo()
-	url := filepath.Join("/", config.RepoName, "index.html")
+
+	prefixPath := filepath.Join("/", config.RepoName)
+	url := filepath.Join(prefixPath, "index.html")
 	config.Logger.Info(url)
 }
