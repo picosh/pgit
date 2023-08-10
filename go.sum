@@ -13,8 +13,6 @@ github.com/gogs/git-module v1.6.0 h1:71GdRM9/pFxGgSUz8t2DKmm3RYuHUnTjsOuFInJXnkM
 github.com/gogs/git-module v1.6.0/go.mod h1:8jFYhDxLUwEOhM2709l2CJXmoIIslobU1xszpT0NcAI=
 github.com/mcuadros/go-version v0.0.0-20190308113854-92cdf37c5b75 h1:Pijfgr7ZuvX7QIQiEwLdRVr3RoMG+i0SbBO1Qu+7yVk=
 github.com/mcuadros/go-version v0.0.0-20190308113854-92cdf37c5b75/go.mod h1:76rfSfYPWj01Z85hUf/ituArm797mNKcvINh1OlsZKo=
-github.com/mergestat/timediff v0.0.3 h1:ucCNh4/ZrTPjFZ081PccNbhx9spymCJkFxSzgVuPU+Y=
-github.com/mergestat/timediff v0.0.3/go.mod h1:yvMUaRu2oetc+9IbPLYBJviz6sA7xz8OXMDfhBl7YSI=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

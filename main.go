@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma"
@@ -21,7 +22,6 @@ import (
 	"github.com/alecthomas/chroma/styles"
 	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
-	"github.com/mergestat/timediff"
 	"go.uber.org/zap"
 )
 
@@ -333,8 +333,8 @@ func (c *Config) writeHtml(writeData *WriteData) {
 
 func (c *Config) copyStatic(dst string, data []byte) {
 	c.Logger.Infof("writing (%s)", dst)
-    err := ioutil.WriteFile(dst, data, 0755)
-    bail(err)
+	err := ioutil.WriteFile(dst, data, 0755)
+	bail(err)
 }
 
 func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
@@ -692,7 +692,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			ShortID:    getShortID(commit.ID.String()),
 			SummaryStr: commit.Summary(),
 			AuthorStr:  commit.Author.Name,
-			WhenStr:    timediff.TimeDiff(commit.Author.When),
+			WhenStr:    commit.Author.When.Format(time.RFC822),
 			Commit:     commit,
 			Refs:       tags,
 		})
@@ -723,7 +723,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			}
 			entry.CommitURL = c.getCommitURL(lc.ID.String())
 			entry.Summary = lc.Summary()
-			entry.When = timediff.TimeDiff(lc.Author.When)
+			entry.When = lc.Author.When.Format(time.RFC822)
 		}
 		entry.URL = template.URL(filepath.Join(
 			"/",
@@ -757,6 +757,8 @@ func main() {
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
 	var assetFlag = flag.Bool("assets", false, "copy static assets to --out")
+	var cloneFlag = flag.String("clone-url", "", "git clone URL")
+	var descFlag = flag.String("desc", "", "description for repo")
 
 	flag.Parse()
 
@@ -792,6 +794,8 @@ func main() {
 		Revs:     revs,
 		Theme:    theme,
 		Logger:   logger,
+		CloneURL: template.URL(*cloneFlag),
+		Desc:     *descFlag,
 	}
 	config.Logger.Infof("%+v", config)
 

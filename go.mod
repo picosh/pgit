@@ -6,7 +6,6 @@ require (
 	github.com/alecthomas/chroma v0.10.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gogs/git-module v1.6.0
-	github.com/mergestat/timediff v0.0.3
 	go.uber.org/zap v1.25.0
 )
 
