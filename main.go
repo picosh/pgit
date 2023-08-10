@@ -73,7 +73,7 @@ type RevData struct {
 
 type TagData struct {
 	Name string
-	URL template.URL
+	URL  template.URL
 }
 
 type CommitData struct {
@@ -82,7 +82,7 @@ type CommitData struct {
 	WhenStr    string
 	AuthorStr  string
 	ShortID    string
-	Refs []*RefInfo
+	Refs       []*RefInfo
 	*git.Commit
 }
 
@@ -117,7 +117,7 @@ type DiffRenderFile struct {
 }
 
 type RefInfo struct {
-	ID string
+	ID      string
 	Refspec string
 	URL     template.URL
 }
@@ -577,7 +577,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	claimed := false
 	for _, revData := range revs {
 		refInfoMap[revData.RevName] = &RefInfo{
-			ID: revData.ID,
+			ID:      revData.ID,
 			Refspec: revData.RevName,
 			URL:     revData.TreeURL,
 		}
@@ -592,7 +592,7 @@ func (c *Config) writeRepo() *BranchOutput {
 		}
 
 		refInfoMap[refspec] = &RefInfo{
-			ID: ref.ID,
+			ID:      ref.ID,
 			Refspec: refspec,
 		}
 	}
@@ -614,13 +614,13 @@ func (c *Config) writeRepo() *BranchOutput {
 	})
 
 	for _, revData := range revs {
-	data := &PageData{
+		data := &PageData{
 			Repo:     c,
 			RevData:  revData,
 			SiteURLs: c.getURLs(),
 		}
 
-		branchOutput := c.writeBranch(repo, data, refInfoList)
+		branchOutput := c.writeRevision(repo, data, refInfoList)
 		if !claimed {
 			mainOutput = branchOutput
 			claimed = true
@@ -645,8 +645,12 @@ func (c *Config) writeRepo() *BranchOutput {
 	return mainOutput
 }
 
-func (c *Config) writeBranch(repo *git.Repository, pageData *PageData, refs []*RefInfo) *BranchOutput {
-	fmt.Printf("compiling (%s) branch (%s)\n", c.RepoName, pageData.RevData.RevName)
+func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []*RefInfo) *BranchOutput {
+	c.Logger.Infof(
+		"compiling (%s) revision (%s)",
+		c.RepoName,
+		pageData.RevData.RevName,
+	)
 
 	output := &BranchOutput{}
 	pageSize := pageData.Repo.MaxCommits
@@ -677,7 +681,7 @@ func (c *Config) writeBranch(repo *git.Repository, pageData *PageData, refs []*R
 			AuthorStr:  commit.Author.Name,
 			WhenStr:    timediff.TimeDiff(commit.Author.When),
 			Commit:     commit,
-			Refs: tags,
+			Refs:       tags,
 		})
 	}
 
