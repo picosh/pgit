@@ -283,7 +283,7 @@ func readmeFile(repo *Config) string {
 	return strings.ToLower(repo.Readme)
 }
 
-func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeItem) []*TreeItem {
+func walkTree(tree *git.Tree, commitID string, curpath string, aggregate []*TreeItem) []*TreeItem {
 	entries, err := tree.Entries()
 	bail(err)
 
@@ -292,7 +292,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 		typ := entry.Type()
 		if typ == git.ObjectTree {
 			re, _ := tree.Subtree(entry.Name())
-			aggregate = walkTree(re, branch, fname, aggregate)
+			aggregate = walkTree(re, commitID, fname, aggregate)
 		}
 
 		if entry.Type() == git.ObjectBlob {
@@ -300,7 +300,7 @@ func walkTree(tree *git.Tree, branch string, curpath string, aggregate []*TreeIt
 				Size:  toPretty(entry.Size()),
 				Path:  fname,
 				Entry: entry,
-				URL:   template.URL(filepath.Join("/", "tree", branch, "item", fname)),
+				URL:   template.URL(filepath.Join("/", "tree", commitID, "item", fname)),
 			})
 		}
 	}
@@ -415,7 +415,7 @@ func (c *Config) writeHTMLTreeFiles(pageData *PageData, tree []*TreeItem) string
 				Contents: template.HTML(contents),
 				Path:     file.Path,
 			},
-			Subdir: filepath.Join("tree", pageData.RevData.RevName, "item", d),
+			Subdir: filepath.Join("tree", getShortID(pageData.RevData.ID), "item", d),
 		})
 	}
 	return readme
@@ -504,27 +504,22 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 	}
 }
 
-func (c *Config) getCloneURL() template.URL {
-	url := fmt.Sprintf("https://%s/%s.git", c.CloneURL, c.RepoName)
-	return template.URL(url)
-}
-
-func (c *Config) getSummaryUrl() template.URL {
+func (c *Config) getSummaryURL() template.URL {
 	url := fmt.Sprintf("/%s/index.html", c.RepoName)
 	return template.URL(url)
 }
 
-func (c *Config) getRefsUrl() template.URL {
+func (c *Config) getRefsURL() template.URL {
 	url := fmt.Sprintf("/%s/refs.html", c.RepoName)
 	return template.URL(url)
 }
 
-func (c *Config) getTreeUrl(revn string) template.URL {
+func (c *Config) getTreeURL(revn string) template.URL {
 	url := fmt.Sprintf("/%s/tree/%s/index.html", c.RepoName, revn)
 	return template.URL(url)
 }
 
-func (c *Config) getLogsUrl(revn string) template.URL {
+func (c *Config) getLogsURL(revn string) template.URL {
 	url := fmt.Sprintf("/%s/logs/%s/index.html", c.RepoName, revn)
 	return template.URL(url)
 }
@@ -538,8 +533,8 @@ func (c *Config) getURLs() *SiteURLs {
 	return &SiteURLs{
 		RootURL:    c.HomeUrl,
 		CloneURL:   c.CloneURL,
-		RefsURL:    c.getRefsUrl(),
-		SummaryURL: c.getSummaryUrl(),
+		RefsURL:    c.getRefsURL(),
+		SummaryURL: c.getSummaryURL(),
 	}
 }
 
@@ -572,8 +567,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		data := &RevData{
 			ID:      fullRevID,
 			RevName: revName,
-			TreeURL: c.getTreeUrl(revName),
-			LogURL:  c.getLogsUrl(revName),
+			TreeURL: c.getTreeURL(revName),
+			LogURL:  c.getLogsURL(revName),
 		}
 		if first == nil {
 			first = data
@@ -643,8 +638,8 @@ func (c *Config) writeRepo() *BranchOutput {
 	// use the first revision in our list to generate
 	// the root summary, logs, and tree the user can click
 	revData := &RevData{
-		TreeURL: c.getTreeUrl(first.RevName),
-		LogURL:  c.getLogsUrl(first.RevName),
+		TreeURL: c.getTreeURL(getShortID(first.ID)),
+		LogURL:  c.getLogsURL(getShortID(first.ID)),
 		RevName: first.RevName,
 	}
 
@@ -702,7 +697,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	bail(err)
 
 	entries := []*TreeItem{}
-	treeEntries := walkTree(tree, pageData.RevData.RevName, "", entries)
+	treeEntries := walkTree(tree, getShortID(pageData.RevData.ID), "", entries)
 	for _, entry := range treeEntries {
 		entry.Path = strings.TrimPrefix(entry.Path, "/")
 
@@ -725,14 +720,15 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			entry.Summary = lc.Summary()
 			entry.When = lc.Author.When.Format(time.RFC822)
 		}
-		entry.URL = template.URL(filepath.Join(
+		fpath := filepath.Join(
 			"/",
 			c.RepoName,
 			"tree",
-			pageData.RevData.RevName,
+			getShortID(pageData.RevData.ID),
 			"item",
 			fmt.Sprintf("%s.html", entry.Path),
-		))
+		)
+		entry.URL = template.URL(fpath)
 	}
 
 	c.Logger.Infof(
