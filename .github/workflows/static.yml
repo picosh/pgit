@@ -20,7 +20,13 @@ jobs:
           go install github.com/picosh/pgit
       - name: generate site
         run: |
-          pgit --out ./public --label pgit --desc "static site generator for git" --clone-url "https://github.com/picosh/pgit.git" --revs main
+          pgit \
+            --out ./public \
+            --label pgit \
+            --desc "static site generator for git" \
+            --clone-url "https://github.com/picosh/pgit.git" \
+            --home-url "https://git.erock.io" \
+            --revs main
       - name: Set outputs
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
