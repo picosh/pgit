@@ -16,8 +16,7 @@ jobs:
           go-version: '1.20'
       - name: install pgit
         run: |
-          go get github.com/picosh/pgit
-          go install github.com/picosh/pgit
+          go install github.com/picosh/pgit@latest
       - name: generate site
         run: |
           pgit \
