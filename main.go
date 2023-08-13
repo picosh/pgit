@@ -797,14 +797,14 @@ func main() {
 	}
 	config.Logger.Infof("%+v", config)
 
-	config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
-	config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
-
 	if len(revs) == 0 {
 		bail(fmt.Errorf("you must provide --revs"))
 	}
 
 	config.writeRepo()
+
+	config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
+	config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
 
 	url := filepath.Join("/", "index.html")
 	config.Logger.Info(url)
