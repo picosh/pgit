@@ -317,7 +317,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	)
 	bail(err)
 
-	dir := filepath.Join(c.Outdir, c.RepoName, writeData.Subdir)
+	dir := filepath.Join(c.Outdir, writeData.Subdir)
 	err = os.MkdirAll(dir, os.ModePerm)
 	bail(err)
 
@@ -351,7 +351,7 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   filepath.Join("tree", data.RevData.RevName),
+		Subdir:   filepath.Join("tree", getShortID(data.RevData.ID)),
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
 			PageData: data,
@@ -363,7 +363,7 @@ func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
 func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   filepath.Join("logs", data.RevData.RevName),
+		Subdir:   filepath.Join("logs", getShortID(data.RevData.ID)),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
 			PageData: data,
@@ -505,27 +505,27 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 }
 
 func (c *Config) getSummaryURL() template.URL {
-	url := fmt.Sprintf("/%s/index.html", c.RepoName)
+	url := "/index.html"
 	return template.URL(url)
 }
 
 func (c *Config) getRefsURL() template.URL {
-	url := fmt.Sprintf("/%s/refs.html", c.RepoName)
+	url := "/refs.html"
 	return template.URL(url)
 }
 
 func (c *Config) getTreeURL(revn string) template.URL {
-	url := fmt.Sprintf("/%s/tree/%s/index.html", c.RepoName, revn)
+	url := fmt.Sprintf("/tree/%s/index.html", revn)
 	return template.URL(url)
 }
 
 func (c *Config) getLogsURL(revn string) template.URL {
-	url := fmt.Sprintf("/%s/logs/%s/index.html", c.RepoName, revn)
+	url := fmt.Sprintf("/logs/%s/index.html", revn)
 	return template.URL(url)
 }
 
 func (c *Config) getCommitURL(commitID string) template.URL {
-	url := fmt.Sprintf("/%s/commits/%s.html", c.RepoName, commitID)
+	url := fmt.Sprintf("/commits/%s.html", commitID)
 	return template.URL(url)
 }
 
@@ -555,7 +555,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		fullRevID, err := repo.RevParse(revStr)
 		bail(err)
 
-		revName := getShortID(fullRevID)
+		revID := getShortID(fullRevID)
+		revName := revID
 		// if it's a reference then label it as such
 		for _, ref := range refs {
 			if revStr == git.RefShortName(ref.Refspec) || revStr == ref.Refspec {
@@ -567,8 +568,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		data := &RevData{
 			ID:      fullRevID,
 			RevName: revName,
-			TreeURL: c.getTreeURL(revName),
-			LogURL:  c.getLogsURL(revName),
+			TreeURL: c.getTreeURL(revID),
+			LogURL:  c.getLogsURL(revID),
 		}
 		if first == nil {
 			first = data
@@ -721,9 +722,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			entry.When = lc.Author.When.Format(time.RFC822)
 		}
 		fpath := filepath.Join(
-			"/",
-			c.RepoName,
-			"tree",
+			"/tree",
 			getShortID(pageData.RevData.ID),
 			"item",
 			fmt.Sprintf("%s.html", entry.Path),
@@ -752,7 +751,6 @@ func main() {
 	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD")
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
-	var assetFlag = flag.Bool("assets", false, "copy static assets to --out")
 	var cloneFlag = flag.String("clone-url", "", "git clone URL")
 	var descFlag = flag.String("desc", "", "description for repo")
 	var maxCommitsFlag = flag.Int("max-commits", 0, "maximum number of commits to generate")
@@ -799,12 +797,8 @@ func main() {
 	}
 	config.Logger.Infof("%+v", config)
 
-	writeAssets := *assetFlag
-	if writeAssets {
-		config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
-		config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
-		return
-	}
+	config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
+	config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
 
 	if len(revs) == 0 {
 		bail(fmt.Errorf("you must provide --revs"))
@@ -812,7 +806,6 @@ func main() {
 
 	config.writeRepo()
 
-	prefixPath := filepath.Join("/", config.RepoName)
-	url := filepath.Join(prefixPath, "index.html")
+	url := filepath.Join("/", "index.html")
 	config.Logger.Info(url)
 }

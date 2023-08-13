@@ -31,5 +31,5 @@ jobs:
           user: erock
           key: ${{ secrets.PRIVATE_KEY }}
           src: './public/*'
-          project: "git-${{ steps.vars.outputs.sha_short }}"
-          promote: "git"
+          project: "git-pgit-${{ steps.vars.outputs.sha_short }}"
+          promote: "git-pgit"
