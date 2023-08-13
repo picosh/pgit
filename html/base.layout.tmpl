@@ -1,16 +1,22 @@
 {{define "base"}}
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset='utf-8'>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{{template "title" .}}</title>
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{template "title" .}}</title>
 
-        <meta name="keywords" content="git code forge repo repository" />
+    <meta name="keywords" content="git code forge repo repository" />
 
-        <link rel="stylesheet" href="/main.css" />
-        <link rel="stylesheet" href="/syntax.css" />
-    </head>
-    <body>{{template "content" .}}</body>
+    <link rel="stylesheet" href="/main.css" />
+    <link rel="stylesheet" href="/syntax.css" />
+  </head>
+  <body>
+    <header>{{template "header" .}}</header>
+    <hr />
+    <main>{{template "content" .}}</main>
+    <hr />
+    <footer>{{template "footer" .}}</footer>
+  </body>
 </html>
 {{end}}

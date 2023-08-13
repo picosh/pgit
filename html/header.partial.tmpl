@@ -1,20 +1,22 @@
 {{define "header"}}
-<h1 class="text-xl">
-  {{.Repo.RepoName}}
+<h1 class="text-xl flex gap">
+  {{if .SiteURLs.HomeURL}}
+    <a href="{{.SiteURLs.HomeURL}}">repos</a>
+    <span>/</span>
+  {{end}}
+  <span>{{.Repo.RepoName}}</span>
 </h1>
 
-<div class="text-lg">
+<nav class="text-lg">
   <a href="{{.SiteURLs.SummaryURL}}">summary</a> |
   <a href="{{.SiteURLs.RefsURL}}">refs</a> |
   <span class="font-bold">{{.RevData.RevName}}</span> |
   <a href="{{.RevData.TreeURL}}">tree</a> |
   <a href="{{.RevData.LogURL}}">log</a>
-</div>
+</nav>
 
 <div class="mt-lg">
   <div class="text-lg">{{.Repo.Desc}}</div>
   <pre style="margin: 0;">git clone {{.SiteURLs.CloneURL}}</pre>
 </div>
-
-<hr />
 {{end}}

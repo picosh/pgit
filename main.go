@@ -56,7 +56,7 @@ type Config struct {
 	HideTreeLastCommit bool
 
 	// user-defined urls
-	HomeUrl  template.URL
+	HomeURL  template.URL
 	CloneURL template.URL
 
 	// computed
@@ -135,7 +135,7 @@ type BranchOutput struct {
 }
 
 type SiteURLs struct {
-	RootURL    template.URL
+	HomeURL    template.URL
 	CloneURL   template.URL
 	SummaryURL template.URL
 	RefsURL    template.URL
@@ -313,6 +313,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 		efs,
 		writeData.Template,
 		"html/header.partial.tmpl",
+		"html/footer.partial.tmpl",
 		"html/base.layout.tmpl",
 	)
 	bail(err)
@@ -531,7 +532,7 @@ func (c *Config) getCommitURL(commitID string) template.URL {
 
 func (c *Config) getURLs() *SiteURLs {
 	return &SiteURLs{
-		RootURL:    c.HomeUrl,
+		HomeURL:    c.HomeURL,
 		CloneURL:   c.CloneURL,
 		RefsURL:    c.getRefsURL(),
 		SummaryURL: c.getSummaryURL(),
@@ -752,6 +753,7 @@ func main() {
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
 	var cloneFlag = flag.String("clone-url", "", "git clone URL")
+	var homeFlag = flag.String("home-url", "", "URL for breadcumbs to get to list of repositories")
 	var descFlag = flag.String("desc", "", "description for repo")
 	var maxCommitsFlag = flag.Int("max-commits", 0, "maximum number of commits to generate")
 	var hideTreeLastCommitFlag = flag.Bool("hide-tree-last-commit", false, "dont calculate last commit for each file in the tree")
@@ -791,6 +793,7 @@ func main() {
 		Theme:              theme,
 		Logger:             logger,
 		CloneURL:           template.URL(*cloneFlag),
+		HomeURL:            template.URL(*homeFlag),
 		Desc:               *descFlag,
 		MaxCommits:         *maxCommitsFlag,
 		HideTreeLastCommit: *hideTreeLastCommitFlag,
