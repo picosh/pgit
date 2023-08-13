@@ -1,3 +1,6 @@
+REV=$(shell git rev-parse --short HEAD)
+PROJECT="git-pgit-$(REV)"
+
 clean:
 	rm -rf ./public
 .PHONY: clean
@@ -11,10 +14,16 @@ img:
 .PHONY: img
 
 static: build clean
-	cp -R ./static ./public
-	./pgit
+	./pgit \
+		--out ./public \
+		--label pgit \
+		--desc "static site generator for git" \
+		--clone-url "https://github.com/picosh/pgit.git" \
+		--home-url "https://git.erock.io" \
+		--revs main
 .PHONY:
 
 deploy:
-	scp -r ./public/* erock@pgs.sh:/git
+	scp -r ./public/* erock@pgs.sh:/$(PROJECT)
+	ssh erock@pgs.sh git-pgit link $(PROJECT)
 .PHONY: deploy
