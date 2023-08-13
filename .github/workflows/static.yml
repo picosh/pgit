@@ -22,10 +22,14 @@ jobs:
         run: |
           pgit --out ./public --label pgit --desc "static site generator for git" --clone-url "https://github.com/picosh/pgit.git" --revs main
           pgit --out ./public --assets
+      - name: Set outputs
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: publish to pgs
         uses: picosh/pgs-action@main
         with:
           user: erock
           key: ${{ secrets.PRIVATE_KEY }}
           src: './public/*'
-          project: 'git'
+          project: "git-${{ steps.vars.outputs.sha_short }}"
+          promote: "git"
