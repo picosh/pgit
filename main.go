@@ -448,11 +448,11 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 		parentID := parent.ID.String()
 
 		diff, err := repo.Diff(
-			parentID,
+			commitID,
 			0,
 			0,
 			0,
-			git.DiffOptions{Base: commitID},
+			git.DiffOptions{Base: parentID},
 		)
 
 		rnd := &DiffRender{
