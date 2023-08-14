@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma"
@@ -70,12 +69,31 @@ type Config struct {
 	Theme *chroma.Style
 }
 
+type RevInfo interface {
+	ID() string
+	Name() string
+}
+
 // revision data
 type RevData struct {
-	ID      string
-	RevName string
-	TreeURL template.URL
-	LogURL  template.URL
+	id   string
+	name string
+}
+
+func (r *RevData) ID() string {
+	return r.id
+}
+
+func (r *RevData) Name() string {
+	return r.name
+}
+
+func (r *RevData) TreeURL() template.URL {
+	return getTreeURL(r)
+}
+
+func (r *RevData) LogURL() template.URL {
+	return getLogsURL(r)
 }
 
 type TagData struct {
@@ -283,7 +301,7 @@ func readmeFile(repo *Config) string {
 	return strings.ToLower(repo.Readme)
 }
 
-func walkTree(tree *git.Tree, commitID string, curpath string, aggregate []*TreeItem) []*TreeItem {
+func walkTree(tree *git.Tree, revData *RevData, curpath string, aggregate []*TreeItem) []*TreeItem {
 	entries, err := tree.Entries()
 	bail(err)
 
@@ -292,7 +310,7 @@ func walkTree(tree *git.Tree, commitID string, curpath string, aggregate []*Tree
 		typ := entry.Type()
 		if typ == git.ObjectTree {
 			re, _ := tree.Subtree(entry.Name())
-			aggregate = walkTree(re, commitID, fname, aggregate)
+			aggregate = walkTree(re, revData, fname, aggregate)
 		}
 
 		if entry.Type() == git.ObjectBlob {
@@ -300,7 +318,7 @@ func walkTree(tree *git.Tree, commitID string, curpath string, aggregate []*Tree
 				Size:  toPretty(entry.Size()),
 				Path:  fname,
 				Entry: entry,
-				URL:   template.URL(filepath.Join("/", "tree", commitID, "item", fname)),
+				URL:   template.URL(getFileURL(revData, fname)),
 			})
 		}
 	}
@@ -352,7 +370,7 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   filepath.Join("tree", getShortID(data.RevData.ID)),
+		Subdir:   getTreeBaseDir(data.RevData),
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
 			PageData: data,
@@ -364,7 +382,7 @@ func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
 func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   filepath.Join("logs", getShortID(data.RevData.ID)),
+		Subdir:   getLogBaseDir(data.RevData),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
 			PageData: data,
@@ -416,7 +434,7 @@ func (c *Config) writeHTMLTreeFiles(pageData *PageData, tree []*TreeItem) string
 				Contents: template.HTML(contents),
 				Path:     file.Path,
 			},
-			Subdir: filepath.Join("tree", getShortID(pageData.RevData.ID), "item", d),
+			Subdir: getFileURL(pageData.RevData, d),
 		})
 	}
 	return readme
@@ -442,7 +460,7 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 			pt := ancestors[0]
 			parent = &CommitData{
 				Commit: pt,
-				URL:    c.getCommitURL(pt.ID.String()),
+				URL:    getCommitURL(pt.ID.String()),
 			}
 		}
 		parentID := parent.ID.String()
@@ -492,8 +510,8 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 			CommitID:  getShortID(commitID),
 			Diff:      rnd,
 			Parent:    getShortID(parentID),
-			CommitURL: c.getCommitURL(commitID),
-			ParentURL: c.getCommitURL(parentID),
+			CommitURL: getCommitURL(commitID),
+			ParentURL: getCommitURL(parentID),
 		}
 
 		c.writeHtml(&WriteData{
@@ -505,27 +523,47 @@ func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []
 	}
 }
 
-func (c *Config) getSummaryURL() template.URL {
+func getSummaryURL() template.URL {
 	url := "/index.html"
 	return template.URL(url)
 }
 
-func (c *Config) getRefsURL() template.URL {
+func getRefsURL() template.URL {
 	url := "/refs.html"
 	return template.URL(url)
 }
 
-func (c *Config) getTreeURL(revn string) template.URL {
-	url := fmt.Sprintf("/tree/%s/index.html", revn)
+func getRevIDForURL(info RevInfo) string {
+	return info.Name()
+}
+
+func getTreeBaseDir(info RevInfo) string {
+	subdir := getRevIDForURL(info)
+	return filepath.Join("/", "tree", subdir)
+}
+
+func getLogBaseDir(info RevInfo) string {
+	subdir := getRevIDForURL(info)
+	return filepath.Join("/", "logs", subdir)
+}
+
+func getFileURL(info RevInfo, fname string) string {
+	return filepath.Join(getTreeBaseDir(info), "item", fname)
+}
+
+func getTreeURL(info RevInfo) template.URL {
+	dir := getTreeBaseDir(info)
+	url := filepath.Join(dir, "index.html")
 	return template.URL(url)
 }
 
-func (c *Config) getLogsURL(revn string) template.URL {
-	url := fmt.Sprintf("/logs/%s/index.html", revn)
+func getLogsURL(info RevInfo) template.URL {
+	dir := getLogBaseDir(info)
+	url := filepath.Join(dir, "index.html")
 	return template.URL(url)
 }
 
-func (c *Config) getCommitURL(commitID string) template.URL {
+func getCommitURL(commitID string) template.URL {
 	url := fmt.Sprintf("/commits/%s.html", commitID)
 	return template.URL(url)
 }
@@ -534,8 +572,8 @@ func (c *Config) getURLs() *SiteURLs {
 	return &SiteURLs{
 		HomeURL:    c.HomeURL,
 		CloneURL:   c.CloneURL,
-		RefsURL:    c.getRefsURL(),
-		SummaryURL: c.getSummaryURL(),
+		RefsURL:    getRefsURL(),
+		SummaryURL: getSummaryURL(),
 	}
 }
 
@@ -567,11 +605,10 @@ func (c *Config) writeRepo() *BranchOutput {
 		}
 
 		data := &RevData{
-			ID:      fullRevID,
-			RevName: revName,
-			TreeURL: c.getTreeURL(revID),
-			LogURL:  c.getLogsURL(revID),
+			id:   fullRevID,
+			name: revName,
 		}
+
 		if first == nil {
 			first = data
 		}
@@ -586,10 +623,10 @@ func (c *Config) writeRepo() *BranchOutput {
 	mainOutput := &BranchOutput{}
 	claimed := false
 	for _, revData := range revs {
-		refInfoMap[revData.RevName] = &RefInfo{
-			ID:      revData.ID,
-			Refspec: revData.RevName,
-			URL:     revData.TreeURL,
+		refInfoMap[revData.Name()] = &RefInfo{
+			ID:      revData.ID(),
+			Refspec: revData.Name(),
+			URL:     revData.TreeURL(),
 		}
 	}
 
@@ -640,9 +677,8 @@ func (c *Config) writeRepo() *BranchOutput {
 	// use the first revision in our list to generate
 	// the root summary, logs, and tree the user can click
 	revData := &RevData{
-		TreeURL: c.getTreeURL(getShortID(first.ID)),
-		LogURL:  c.getLogsURL(getShortID(first.ID)),
-		RevName: first.RevName,
+		id:   first.ID(),
+		name: first.Name(),
 	}
 
 	data := &PageData{
@@ -659,7 +695,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	c.Logger.Infof(
 		"compiling (%s) revision (%s)",
 		c.RepoName,
-		pageData.RevData.RevName,
+		pageData.RevData.Name(),
 	)
 
 	output := &BranchOutput{}
@@ -668,7 +704,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		pageSize = 5000
 	}
 
-	commits, err := repo.CommitsByPage(pageData.RevData.ID, 0, pageSize)
+	commits, err := repo.CommitsByPage(pageData.RevData.ID(), 0, pageSize)
 	bail(err)
 
 	logs := []*CommitData{}
@@ -685,21 +721,21 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		}
 
 		logs = append(logs, &CommitData{
-			URL:        c.getCommitURL(commit.ID.String()),
+			URL:        getCommitURL(commit.ID.String()),
 			ShortID:    getShortID(commit.ID.String()),
 			SummaryStr: commit.Summary(),
 			AuthorStr:  commit.Author.Name,
-			WhenStr:    commit.Author.When.Format(time.RFC822),
+			WhenStr:    commit.Author.When.Format("02 Jan 06"),
 			Commit:     commit,
 			Refs:       tags,
 		})
 	}
 
-	tree, err := repo.LsTree(pageData.RevData.ID)
+	tree, err := repo.LsTree(pageData.RevData.ID())
 	bail(err)
 
 	entries := []*TreeItem{}
-	treeEntries := walkTree(tree, getShortID(pageData.RevData.ID), "", entries)
+	treeEntries := walkTree(tree, pageData.RevData, "", entries)
 	for _, entry := range treeEntries {
 		entry.Path = strings.TrimPrefix(entry.Path, "/")
 
@@ -708,7 +744,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		if pageData.Repo.HideTreeLastCommit {
 			c.Logger.Info("skipping finding last commit for each file")
 		} else {
-			lastCommits, err = repo.RevList([]string{pageData.RevData.ID}, git.RevListOptions{
+			lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
 				Path:           entry.Path,
 				CommandOptions: git.CommandOptions{Args: []string{"-1"}},
 			})
@@ -718,14 +754,12 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			if len(lastCommits) > 0 {
 				lc = lastCommits[0]
 			}
-			entry.CommitURL = c.getCommitURL(lc.ID.String())
+			entry.CommitURL = getCommitURL(lc.ID.String())
 			entry.Summary = lc.Summary()
-			entry.When = lc.Author.When.Format(time.RFC822)
+			entry.When = lc.Author.When.Format("02 Jan 06")
 		}
-		fpath := filepath.Join(
-			"/tree",
-			getShortID(pageData.RevData.ID),
-			"item",
+		fpath := getFileURL(
+			pageData.RevData,
 			fmt.Sprintf("%s.html", entry.Path),
 		)
 		entry.URL = template.URL(fpath)
@@ -734,7 +768,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	c.Logger.Infof(
 		"compilation complete (%s) branch (%s)",
 		c.RepoName,
-		pageData.RevData.RevName,
+		pageData.RevData.Name(),
 	)
 
 	c.writeLog(pageData, logs)
