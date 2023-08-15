@@ -811,6 +811,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 				entry.Summary = lc.Summary()
 				entry.When = lc.Author.When.Format("02 Jan 06")
 			}
+
 			fpath := getFileURL(
 				pageData.RevData,
 				fmt.Sprintf("%s.html", entry.Path),
