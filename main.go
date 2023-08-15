@@ -533,6 +533,9 @@ func getRefsURL() template.URL {
 	return template.URL(url)
 }
 
+// controls the url for trees and logs
+// /logs/getRevIDForURL()/index.html
+// /tree/getRevIDForURL()/item/file.x.html
 func getRevIDForURL(info RevInfo) string {
 	return info.Name()
 }
@@ -667,8 +670,12 @@ func (c *Config) writeRepo() *BranchOutput {
 			SiteURLs: c.getURLs(),
 		}
 
-		branchOutput := c.writeRevision(repo, data, refInfoList)
-		if !claimed {
+		if claimed {
+			go func() {
+				c.writeRevision(repo, data, refInfoList)
+			}()
+		} else {
+			branchOutput := c.writeRevision(repo, data, refInfoList)
 			mainOutput = branchOutput
 			claimed = true
 		}
@@ -742,7 +749,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		var lastCommits []*git.Commit
 		// `git rev-list` is pretty expensive here, so we have a flag to disable
 		if pageData.Repo.HideTreeLastCommit {
-			c.Logger.Info("skipping finding last commit for each file")
+			c.Logger.Info("skipping the process of finding the last commit for each file")
 		} else {
 			lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
 				Path:           entry.Path,
@@ -771,11 +778,17 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		pageData.RevData.Name(),
 	)
 
-	c.writeLog(pageData, logs)
-	c.writeLogDiffs(repo, pageData, logs)
-	c.writeTree(pageData, treeEntries)
-	readme := c.writeHTMLTreeFiles(pageData, treeEntries)
+	go func() {
+		c.writeLog(pageData, logs)
+	}()
+	go func() {
+		c.writeLogDiffs(repo, pageData, logs)
+	}()
+	go func() {
+		c.writeTree(pageData, treeEntries)
+	}()
 
+	readme := c.writeHTMLTreeFiles(pageData, treeEntries)
 	output.Readme = readme
 	return output
 }
