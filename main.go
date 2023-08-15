@@ -740,7 +740,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 				}
 			}
 
-			parentSha, _ := commit.ParentID(1)
+			parentSha, _ := commit.ParentID(0)
 			parentID := ""
 			if parentSha == nil {
 				parentID = commit.ID.String()
