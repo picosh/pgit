@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma"
@@ -61,6 +62,8 @@ type Config struct {
 	// computed
 	// cache for skipping commits, trees, etc.
 	Cache map[string]bool
+	// mutex for Cache
+	Mutex sync.RWMutex
 	// pretty name for the repo
 	RepoName string
 	// logger
@@ -107,6 +110,7 @@ type CommitData struct {
 	WhenStr    string
 	AuthorStr  string
 	ShortID    string
+	ParentID   string
 	Refs       []*RefInfo
 	*git.Commit
 }
@@ -301,31 +305,6 @@ func readmeFile(repo *Config) string {
 	return strings.ToLower(repo.Readme)
 }
 
-func walkTree(tree *git.Tree, revData *RevData, curpath string, aggregate []*TreeItem) []*TreeItem {
-	entries, err := tree.Entries()
-	bail(err)
-
-	for _, entry := range entries {
-		fname := filepath.Join(curpath, entry.Name())
-		typ := entry.Type()
-		if typ == git.ObjectTree {
-			re, _ := tree.Subtree(entry.Name())
-			aggregate = walkTree(re, revData, fname, aggregate)
-		}
-
-		if entry.Type() == git.ObjectBlob {
-			aggregate = append(aggregate, &TreeItem{
-				Size:  toPretty(entry.Size()),
-				Path:  fname,
-				Entry: entry,
-				URL:   template.URL(getFileURL(revData, fname)),
-			})
-		}
-	}
-
-	return aggregate
-}
-
 func (c *Config) writeHtml(writeData *WriteData) {
 	ts, err := template.ParseFS(
 		efs,
@@ -357,6 +336,7 @@ func (c *Config) copyStatic(dst string, data []byte) {
 }
 
 func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
+	c.Logger.Infof("writing root html (%s)", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Template: "html/summary.page.tmpl",
@@ -368,6 +348,7 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 }
 
 func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
+	c.Logger.Infof("writing tree (%s)", data.RevData.Name())
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   getTreeBaseDir(data.RevData),
@@ -380,6 +361,7 @@ func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
 }
 
 func (c *Config) writeLog(data *PageData, logs []*CommitData) {
+	c.Logger.Infof("writing log file (%s)", data.RevData.Name())
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   getLogBaseDir(data.RevData),
@@ -392,6 +374,7 @@ func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 }
 
 func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
+	c.Logger.Infof("writing refs (%s)", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "refs.html",
 		Template: "html/refs.page.tmpl",
@@ -402,125 +385,114 @@ func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
 	})
 }
 
-func (c *Config) writeHTMLTreeFiles(pageData *PageData, tree []*TreeItem) string {
+func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) string {
 	readme := ""
-	for _, file := range tree {
-		b, err := file.Entry.Blob().Bytes()
+	b, err := treeItem.Entry.Blob().Bytes()
+	bail(err)
+	str := string(b)
+
+	treeItem.IsTextFile = isTextFile(str)
+
+	contents := "binary file, cannot display"
+	if treeItem.IsTextFile {
+		treeItem.NumLines = len(strings.Split(str, "\n"))
+		contents, err = parseText(treeItem.Entry.Name(), string(b), c.Theme)
 		bail(err)
-		str := string(b)
-
-		file.IsTextFile = isTextFile(str)
-
-		contents := "binary file, cannot display"
-		if file.IsTextFile {
-			file.NumLines = len(strings.Split(str, "\n"))
-			contents, err = parseText(file.Entry.Name(), string(b), c.Theme)
-			bail(err)
-		}
-
-		d := filepath.Dir(file.Path)
-
-		nameLower := strings.ToLower(file.Entry.Name())
-		summary := readmeFile(pageData.Repo)
-		if nameLower == summary {
-			readme = contents
-		}
-
-		c.writeHtml(&WriteData{
-			Filename: fmt.Sprintf("%s.html", file.Entry.Name()),
-			Template: "html/file.page.tmpl",
-			Data: &FilePageData{
-				PageData: pageData,
-				Contents: template.HTML(contents),
-				Path:     file.Path,
-			},
-			Subdir: getFileURL(pageData.RevData, d),
-		})
 	}
+
+	d := filepath.Dir(treeItem.Path)
+
+	nameLower := strings.ToLower(treeItem.Entry.Name())
+	summary := readmeFile(pageData.Repo)
+	if nameLower == summary {
+		readme = contents
+	}
+
+	c.writeHtml(&WriteData{
+		Filename: fmt.Sprintf("%s.html", treeItem.Entry.Name()),
+		Template: "html/file.page.tmpl",
+		Data: &FilePageData{
+			PageData: pageData,
+			Contents: template.HTML(contents),
+			Path:     treeItem.Path,
+		},
+		Subdir: getFileURL(pageData.RevData, d),
+	})
 	return readme
 }
 
-func (c *Config) writeLogDiffs(repo *git.Repository, pageData *PageData, logs []*CommitData) {
-	for _, commit := range logs {
-		commitID := commit.ID.String()
+func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *CommitData) {
+	commitID := commit.ID.String()
 
-		if c.Cache[commitID] {
-			c.Logger.Infof("(%s) commit file already generated, skipping", getShortID(commitID))
-			continue
-		} else {
-			c.Cache[commitID] = true
+	c.Mutex.RLock()
+	hasCommit := c.Cache[commitID]
+	c.Mutex.RUnlock()
+
+	if hasCommit {
+		c.Logger.Infof("(%s) commit file already generated, skipping", getShortID(commitID))
+		return
+	} else {
+		c.Mutex.Lock()
+		c.Cache[commitID] = true
+		c.Mutex.Unlock()
+	}
+
+	diff, err := repo.Diff(
+		commitID,
+		0,
+		0,
+		0,
+		git.DiffOptions{Base: commit.ParentID},
+	)
+	bail(err)
+
+	rnd := &DiffRender{
+		NumFiles:       diff.NumFiles(),
+		TotalAdditions: diff.TotalAdditions(),
+		TotalDeletions: diff.TotalDeletions(),
+	}
+	fls := []*DiffRenderFile{}
+	for _, file := range diff.Files {
+		fl := &DiffRenderFile{
+			FileType:     diffFileType(file.Type),
+			OldMode:      file.OldMode(),
+			OldName:      file.OldName(),
+			Mode:         file.Mode(),
+			Name:         file.Name,
+			NumAdditions: file.NumAdditions(),
+			NumDeletions: file.NumDeletions(),
 		}
-
-		ancestors, err := commit.Ancestors()
+		content := ""
+		for _, section := range file.Sections {
+			for _, line := range section.Lines {
+				content += fmt.Sprintf("%s\n", line.Content)
+			}
+		}
+		// set filename to something our `ParseText` recognizes (e.g. `.diff`)
+		finContent, err := parseText("commit.diff", content, c.Theme)
 		bail(err)
 
-		// if no ancestors exist then we are at initial commit
-		parent := commit
-		if len(ancestors) > 0 {
-			pt := ancestors[0]
-			parent = &CommitData{
-				Commit: pt,
-				URL:    getCommitURL(pt.ID.String()),
-			}
-		}
-		parentID := parent.ID.String()
-
-		diff, err := repo.Diff(
-			commitID,
-			0,
-			0,
-			0,
-			git.DiffOptions{Base: parentID},
-		)
-
-		rnd := &DiffRender{
-			NumFiles:       diff.NumFiles(),
-			TotalAdditions: diff.TotalAdditions(),
-			TotalDeletions: diff.TotalDeletions(),
-		}
-		fls := []*DiffRenderFile{}
-		for _, file := range diff.Files {
-			fl := &DiffRenderFile{
-				FileType:     diffFileType(file.Type),
-				OldMode:      file.OldMode(),
-				OldName:      file.OldName(),
-				Mode:         file.Mode(),
-				Name:         file.Name,
-				NumAdditions: file.NumAdditions(),
-				NumDeletions: file.NumDeletions(),
-			}
-			content := ""
-			for _, section := range file.Sections {
-				for _, line := range section.Lines {
-					content += fmt.Sprintf("%s\n", line.Content)
-				}
-			}
-			// set filename to something our `ParseText` recognizes (e.g. `.diff`)
-			finContent, err := parseText("commit.diff", content, c.Theme)
-			bail(err)
-
-			fl.Content = template.HTML(finContent)
-			fls = append(fls, fl)
-		}
-		rnd.Files = fls
-
-		commitData := &CommitPageData{
-			PageData:  pageData,
-			Commit:    commit,
-			CommitID:  getShortID(commitID),
-			Diff:      rnd,
-			Parent:    getShortID(parentID),
-			CommitURL: getCommitURL(commitID),
-			ParentURL: getCommitURL(parentID),
-		}
-
-		c.writeHtml(&WriteData{
-			Filename: fmt.Sprintf("%s.html", commitID),
-			Template: "html/commit.page.tmpl",
-			Subdir:   "commits",
-			Data:     commitData,
-		})
+		fl.Content = template.HTML(finContent)
+		fls = append(fls, fl)
 	}
+	rnd.Files = fls
+
+	commitData := &CommitPageData{
+		PageData:  pageData,
+		Commit:    commit,
+		CommitID:  getShortID(commitID),
+		Diff:      rnd,
+		Parent:    getShortID(commit.ParentID),
+		CommitURL: getCommitURL(commitID),
+		ParentURL: getCommitURL(commit.ParentID),
+	}
+
+	c.writeHtml(&WriteData{
+		Filename: fmt.Sprintf("%s.html", commitID),
+		Template: "html/commit.page.tmpl",
+		Subdir:   "commits",
+		Data:     commitData,
+	})
 }
 
 func getSummaryURL() template.URL {
@@ -585,6 +557,7 @@ func getShortID(id string) string {
 }
 
 func (c *Config) writeRepo() *BranchOutput {
+	c.Logger.Infof("Writing repo (%s)", c.RepoPath)
 	repo, err := git.Open(c.RepoPath)
 	bail(err)
 
@@ -664,6 +637,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	})
 
 	for _, revData := range revs {
+		c.Logger.Infof("Writing revision (%s)", revData.Name())
 		data := &PageData{
 			Repo:     c,
 			RevData:  revData,
@@ -698,6 +672,37 @@ func (c *Config) writeRepo() *BranchOutput {
 	return mainOutput
 }
 
+type TreeWalker struct {
+	revData  *RevData
+	treeItem chan *TreeItem
+}
+
+func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
+	entries, err := tree.Entries()
+	bail(err)
+
+	for _, entry := range entries {
+		fname := filepath.Join(curpath, entry.Name())
+		typ := entry.Type()
+
+		if typ == git.ObjectTree {
+			re, _ := tree.Subtree(entry.Name())
+			tw.walk(re, fname)
+		} else if typ == git.ObjectBlob {
+			tw.treeItem <- &TreeItem{
+				Size:  toPretty(entry.Size()),
+				Path:  fname,
+				Entry: entry,
+				URL:   template.URL(getFileURL(tw.revData, fname)),
+			}
+		}
+	}
+
+	if curpath == "" {
+		close(tw.treeItem)
+	}
+}
+
 func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []*RefInfo) *BranchOutput {
 	c.Logger.Infof(
 		"compiling (%s) revision (%s)",
@@ -706,71 +711,121 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	)
 
 	output := &BranchOutput{}
-	pageSize := pageData.Repo.MaxCommits
-	if pageSize == 0 {
-		pageSize = 5000
-	}
 
-	commits, err := repo.CommitsByPage(pageData.RevData.ID(), 0, pageSize)
-	bail(err)
+	var wg sync.WaitGroup
 
-	logs := []*CommitData{}
-	for i, commit := range commits {
-		if i == 0 {
-			output.LastCommit = commit
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		pageSize := pageData.Repo.MaxCommits
+		if pageSize == 0 {
+			pageSize = 5000
 		}
+		fmt.Println("grabbing commits")
+		commits, err := repo.CommitsByPage(pageData.RevData.ID(), 0, pageSize)
+		fmt.Println("got commits")
+		bail(err)
 
-		tags := []*RefInfo{}
-		for _, ref := range refs {
-			if commit.ID.String() == ref.ID {
-				tags = append(tags, ref)
+		logs := []*CommitData{}
+		for i, commit := range commits {
+			if i == 0 {
+				output.LastCommit = commit
 			}
+
+			tags := []*RefInfo{}
+			for _, ref := range refs {
+				if commit.ID.String() == ref.ID {
+					tags = append(tags, ref)
+				}
+			}
+
+			parentSha, _ := commit.ParentID(1)
+			parentID := ""
+			if parentSha == nil {
+				parentID = commit.ID.String()
+			} else {
+				parentID = parentSha.String()
+			}
+			logs = append(logs, &CommitData{
+				ParentID:   parentID,
+				URL:        getCommitURL(commit.ID.String()),
+				ShortID:    getShortID(commit.ID.String()),
+				SummaryStr: commit.Summary(),
+				AuthorStr:  commit.Author.Name,
+				WhenStr:    commit.Author.When.Format("02 Jan 06"),
+				Commit:     commit,
+				Refs:       tags,
+			})
 		}
 
-		logs = append(logs, &CommitData{
-			URL:        getCommitURL(commit.ID.String()),
-			ShortID:    getShortID(commit.ID.String()),
-			SummaryStr: commit.Summary(),
-			AuthorStr:  commit.Author.Name,
-			WhenStr:    commit.Author.When.Format("02 Jan 06"),
-			Commit:     commit,
-			Refs:       tags,
-		})
-	}
+		c.writeLog(pageData, logs)
+
+		for _, cm := range logs {
+			wg.Add(1)
+			go func(commit *CommitData) {
+				defer wg.Done()
+				c.writeLogDiff(repo, pageData, commit)
+			}(cm)
+		}
+	}()
 
 	tree, err := repo.LsTree(pageData.RevData.ID())
 	bail(err)
 
-	entries := []*TreeItem{}
-	treeEntries := walkTree(tree, pageData.RevData, "", entries)
-	for _, entry := range treeEntries {
-		entry.Path = strings.TrimPrefix(entry.Path, "/")
-
-		var lastCommits []*git.Commit
-		// `git rev-list` is pretty expensive here, so we have a flag to disable
-		if pageData.Repo.HideTreeLastCommit {
-			c.Logger.Info("skipping the process of finding the last commit for each file")
-		} else {
-			lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
-				Path:           entry.Path,
-				CommandOptions: git.CommandOptions{Args: []string{"-1"}},
-			})
-			bail(err)
-
-			var lc *git.Commit
-			if len(lastCommits) > 0 {
-				lc = lastCommits[0]
-			}
-			entry.CommitURL = getCommitURL(lc.ID.String())
-			entry.Summary = lc.Summary()
-			entry.When = lc.Author.When.Format("02 Jan 06")
-		}
-		fpath := getFileURL(
-			pageData.RevData,
-			fmt.Sprintf("%s.html", entry.Path),
-		)
-		entry.URL = template.URL(fpath)
+	treeEntries := []*TreeItem{}
+	readme := ""
+	entries := make(chan *TreeItem)
+	tw := &TreeWalker{
+		revData:  pageData.RevData,
+		treeItem: entries,
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tw.walk(tree, "")
+	}()
+
+	for e := range entries {
+		wg.Add(1)
+		go func(entry *TreeItem) {
+			defer wg.Done()
+			entry.Path = strings.TrimPrefix(entry.Path, "/")
+
+			var lastCommits []*git.Commit
+			// `git rev-list` is pretty expensive here, so we have a flag to disable
+			if pageData.Repo.HideTreeLastCommit {
+				// c.Logger.Info("skipping the process of finding the last commit for each file")
+			} else {
+				lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
+					Path:           entry.Path,
+					CommandOptions: git.CommandOptions{Args: []string{"-1"}},
+				})
+				bail(err)
+
+				var lc *git.Commit
+				if len(lastCommits) > 0 {
+					lc = lastCommits[0]
+				}
+				entry.CommitURL = getCommitURL(lc.ID.String())
+				entry.Summary = lc.Summary()
+				entry.When = lc.Author.When.Format("02 Jan 06")
+			}
+			fpath := getFileURL(
+				pageData.RevData,
+				fmt.Sprintf("%s.html", entry.Path),
+			)
+			entry.URL = template.URL(fpath)
+
+			readmeStr := c.writeHTMLTreeFile(pageData, entry)
+			if readmeStr != "" {
+				readme = readmeStr
+			}
+			treeEntries = append(treeEntries, entry)
+		}(e)
+	}
+
+	wg.Wait()
 
 	c.Logger.Infof(
 		"compilation complete (%s) branch (%s)",
@@ -778,17 +833,8 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		pageData.RevData.Name(),
 	)
 
-	go func() {
-		c.writeLog(pageData, logs)
-	}()
-	go func() {
-		c.writeLogDiffs(repo, pageData, logs)
-	}()
-	go func() {
-		c.writeTree(pageData, treeEntries)
-	}()
+	c.writeTree(pageData, treeEntries)
 
-	readme := c.writeHTMLTreeFiles(pageData, treeEntries)
 	output.Readme = readme
 	return output
 }
