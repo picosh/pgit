@@ -1,6 +1,6 @@
 {{template "base" .}}
 
-{{define "title"}}{{.Repo.RepoName}}{{end}}
+{{define "title"}}{{.Repo.RepoName}}{{if .Repo.Desc}}- {{.Repo.Desc}}{{end}}{{end}}
 {{define "meta"}}
 <link rel="stylesheet" href="/syntax.css" />
 {{end}}
