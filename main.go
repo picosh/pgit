@@ -828,6 +828,12 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 
 	wg.Wait()
 
+	sort.Slice(treeEntries, func(i, j int) bool {
+		nameI := treeEntries[i].Path
+		nameJ := treeEntries[j].Path
+		return nameI < nameJ
+	})
+
 	c.Logger.Infof(
 		"compilation complete (%s) branch (%s)",
 		c.RepoName,
