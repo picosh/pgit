@@ -13,6 +13,10 @@ img:
 	docker build -t neurosnap/pgit:latest .
 .PHONY: img
 
+fmt:
+	go fmt ./...
+.PHONY: fmt
+
 static: build clean
 	./pgit \
 		--out ./public \

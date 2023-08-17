@@ -1,6 +1,7 @@
 {{template "base" .}}
 
-{{define "title"}}refs{{end}}
+{{define "title"}}refs - {{.Repo.RepoName}}{{end}}
+{{define "meta"}}{{end}}
 
 {{define "content"}}
   <h2 class="text-lg font-bold">refs</h2>

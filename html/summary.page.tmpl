@@ -1,6 +1,9 @@
 {{template "base" .}}
 
-{{define "title"}}summary{{end}}
+{{define "title"}}{{.Repo.RepoName}}{{end}}
+{{define "meta"}}
+<link rel="stylesheet" href="/syntax.css" />
+{{end}}
 
 {{define "content"}}
   {{.Readme}}

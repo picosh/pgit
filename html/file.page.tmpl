@@ -1,5 +1,8 @@
 {{template "base" .}}
-{{define "title"}}file{{end}}
+{{define "title"}}{{.Path}}@{{.RevData.Name}}{{end}}
+{{define "meta"}}
+<link rel="stylesheet" href="/syntax.css" />
+{{end}}
 
 {{define "content"}}
   <h2 class="text-lg">{{.Path}}</h2>

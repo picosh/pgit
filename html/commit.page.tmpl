@@ -1,5 +1,8 @@
 {{template "base" .}}
-{{define "title"}}commit log{{end}}
+{{define "title"}}{{.Commit.Summary}} - {{.Repo.RepoName}}@{{.CommitID}}{{end}}
+{{define "meta"}}
+<link rel="stylesheet" href="/syntax.css" />
+{{end}}
 
 {{define "content"}}
   <dl>
