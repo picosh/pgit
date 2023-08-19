@@ -672,15 +672,25 @@ func (c *Config) writeRepo() *BranchOutput {
 	return mainOutput
 }
 
+type TreeRoot struct {
+	Path string
+	Tree []*TreeItem
+}
+
 type TreeWalker struct {
-	revData  *RevData
-	treeItem chan *TreeItem
+	revData            *RevData
+	treeItem           chan *TreeItem
+	tree               chan *TreeRoot
+	HideTreeLastCommit bool
+	PageData           *PageData
+	Repo               *git.Repository
 }
 
 func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 	entries, err := tree.Entries()
 	bail(err)
 
+	treeEntries := []*TreeItem{}
 	for _, entry := range entries {
 		fname := filepath.Join(curpath, entry.Name())
 		typ := entry.Type()
@@ -689,16 +699,58 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 			re, _ := tree.Subtree(entry.Name())
 			tw.walk(re, fname)
 		} else if typ == git.ObjectBlob {
-			tw.treeItem <- &TreeItem{
+			item := &TreeItem{
 				Size:  toPretty(entry.Size()),
 				Path:  fname,
 				Entry: entry,
 				URL:   template.URL(getFileURL(tw.revData, fname)),
 			}
+			item.Path = strings.TrimPrefix(item.Path, "/")
+
+			var lastCommits []*git.Commit
+			// `git rev-list` is pretty expensive here, so we have a flag to disable
+			if tw.HideTreeLastCommit {
+				// c.Logger.Info("skipping the process of finding the last commit for each file")
+			} else {
+				lastCommits, err = tw.Repo.RevList([]string{tw.PageData.RevData.ID()}, git.RevListOptions{
+					Path:           item.Path,
+					CommandOptions: git.CommandOptions{Args: []string{"-1"}},
+				})
+				bail(err)
+
+				var lc *git.Commit
+				if len(lastCommits) > 0 {
+					lc = lastCommits[0]
+				}
+				item.CommitURL = getCommitURL(lc.ID.String())
+				item.Summary = lc.Summary()
+				item.When = lc.Author.When.Format("02 Jan 06")
+			}
+
+			fpath := getFileURL(
+				tw.PageData.RevData,
+				fmt.Sprintf("%s.html", item.Path),
+			)
+			item.URL = template.URL(fpath)
+
+			treeEntries = append(treeEntries, item)
+			tw.treeItem <- item
 		}
 	}
 
+	sort.Slice(treeEntries, func(i, j int) bool {
+		nameI := treeEntries[i].Path
+		nameJ := treeEntries[j].Path
+		return nameI < nameJ
+	})
+
+	tw.tree <- &TreeRoot{
+		Path: curpath,
+		Tree: treeEntries,
+	}
+
 	if curpath == "" {
+		close(tw.tree)
 		close(tw.treeItem)
 	}
 }
@@ -773,12 +825,13 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	tree, err := repo.LsTree(pageData.RevData.ID())
 	bail(err)
 
-	treeEntries := []*TreeItem{}
 	readme := ""
 	entries := make(chan *TreeItem)
+	subtrees := make(chan *TreeRoot)
 	tw := &TreeWalker{
 		revData:  pageData.RevData,
 		treeItem: entries,
+		tree:     subtrees,
 	}
 	wg.Add(1)
 	go func() {
@@ -786,61 +839,40 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		tw.walk(tree, "")
 	}()
 
-	for e := range entries {
-		wg.Add(1)
-		go func(entry *TreeItem) {
-			defer wg.Done()
-			entry.Path = strings.TrimPrefix(entry.Path, "/")
-
-			var lastCommits []*git.Commit
-			// `git rev-list` is pretty expensive here, so we have a flag to disable
-			if pageData.Repo.HideTreeLastCommit {
-				// c.Logger.Info("skipping the process of finding the last commit for each file")
-			} else {
-				lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
-					Path:           entry.Path,
-					CommandOptions: git.CommandOptions{Args: []string{"-1"}},
-				})
-				bail(err)
-
-				var lc *git.Commit
-				if len(lastCommits) > 0 {
-					lc = lastCommits[0]
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for e := range entries {
+			wg.Add(1)
+			go func(entry *TreeItem) {
+				defer wg.Done()
+				readmeStr := c.writeHTMLTreeFile(pageData, entry)
+				if readmeStr != "" {
+					readme = readmeStr
 				}
-				entry.CommitURL = getCommitURL(lc.ID.String())
-				entry.Summary = lc.Summary()
-				entry.When = lc.Author.When.Format("02 Jan 06")
-			}
+			}(e)
+		}
+	}()
 
-			fpath := getFileURL(
-				pageData.RevData,
-				fmt.Sprintf("%s.html", entry.Path),
-			)
-			entry.URL = template.URL(fpath)
-
-			readmeStr := c.writeHTMLTreeFile(pageData, entry)
-			if readmeStr != "" {
-				readme = readmeStr
-			}
-			treeEntries = append(treeEntries, entry)
-		}(e)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for t := range subtrees {
+			wg.Add(1)
+			go func(tree *TreeRoot) {
+				defer wg.Done()
+				c.writeTree(pageData, tree.Tree)
+			}(t)
+		}
+	}()
 
 	wg.Wait()
-
-	sort.Slice(treeEntries, func(i, j int) bool {
-		nameI := treeEntries[i].Path
-		nameJ := treeEntries[j].Path
-		return nameI < nameJ
-	})
 
 	c.Logger.Infof(
 		"compilation complete (%s) branch (%s)",
 		c.RepoName,
 		pageData.RevData.Name(),
 	)
-
-	c.writeTree(pageData, treeEntries)
 
 	output.Readme = readme
 	return output
