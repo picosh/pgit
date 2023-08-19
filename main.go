@@ -117,14 +117,19 @@ type CommitData struct {
 
 type TreeItem struct {
 	IsTextFile bool
+	IsDir      bool
 	Size       string
 	NumLines   int
+	Name       string
 	Path       string
 	URL        template.URL
+	CommitID string
 	CommitURL  template.URL
 	Summary    string
 	When       string
+	Author *git.Signature
 	Entry      *git.TreeEntry
+	Crumbs []*Breadcrumb
 }
 
 type DiffRender struct {
@@ -176,18 +181,19 @@ type SummaryPageData struct {
 
 type TreePageData struct {
 	*PageData
-	Tree []*TreeItem
+	Tree *TreeRoot
 }
 
 type LogPageData struct {
 	*PageData
-	Logs []*CommitData
+	NumCommits int
+	Logs       []*CommitData
 }
 
 type FilePageData struct {
 	*PageData
 	Contents template.HTML
-	Path     string
+	Item *TreeItem
 }
 
 type CommitPageData struct {
@@ -347,11 +353,11 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 	})
 }
 
-func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
-	c.Logger.Infof("writing tree (%s)", data.RevData.Name())
+func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
+	c.Logger.Infof("writing tree (%s)", tree.Path)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   getTreeBaseDir(data.RevData),
+		Subdir:   tree.Path,
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
 			PageData: data,
@@ -367,8 +373,9 @@ func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 		Subdir:   getLogBaseDir(data.RevData),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
-			PageData: data,
-			Logs:     logs,
+			PageData:   data,
+			NumCommits: len(logs),
+			Logs:       logs,
 		},
 	})
 }
@@ -414,7 +421,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Data: &FilePageData{
 			PageData: pageData,
 			Contents: template.HTML(contents),
-			Path:     treeItem.Path,
+			Item: treeItem,
 		},
 		Subdir: getFileURL(pageData.RevData, d),
 	})
@@ -522,8 +529,12 @@ func getLogBaseDir(info RevInfo) string {
 	return filepath.Join("/", "logs", subdir)
 }
 
+func getFileBaseDir(info RevInfo) string {
+	return filepath.Join(getTreeBaseDir(info), "item")
+}
+
 func getFileURL(info RevInfo, fname string) string {
-	return filepath.Join(getTreeBaseDir(info), "item", fname)
+	return filepath.Join(getFileBaseDir(info), fname)
 }
 
 func getTreeURL(info RevInfo) template.URL {
@@ -672,33 +683,164 @@ func (c *Config) writeRepo() *BranchOutput {
 	return mainOutput
 }
 
+type TreeRoot struct {
+	Path string
+	Items []*TreeItem
+	Crumbs []*Breadcrumb
+}
+
 type TreeWalker struct {
-	revData  *RevData
-	treeItem chan *TreeItem
+	treeItem           chan *TreeItem
+	tree               chan *TreeRoot
+	HideTreeLastCommit bool
+	PageData           *PageData
+	Repo               *git.Repository
+}
+
+type Breadcrumb struct {
+	Text string
+	URL template.URL
+	IsLast bool
+}
+
+func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
+	if curpath == "" {
+		return []*Breadcrumb{}
+	}
+	parts := strings.Split(curpath, string(os.PathSeparator))
+	rootURL := template.URL(
+		filepath.Join(
+			getTreeBaseDir(tw.PageData.RevData),
+			"index.html",
+		),
+	)
+
+	crumbs := make([]*Breadcrumb, len(parts)+1)
+	crumbs[0] = &Breadcrumb {
+		URL: rootURL,
+		Text: tw.PageData.Repo.RepoName,
+	}
+
+	cur := ""
+	for idx, d := range parts {
+		crumbs[idx+1] = &Breadcrumb{
+			Text: d,
+			URL: template.URL(filepath.Join(getFileBaseDir(tw.PageData.RevData), cur, d, "index.html")),
+		}
+		if idx == len(parts) - 1 {
+			crumbs[idx+1].IsLast = true
+		}
+		cur = filepath.Join(cur, d)
+	}
+
+	return crumbs
+}
+
+func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs []*Breadcrumb) *TreeItem {
+	typ := entry.Type()
+	fname := filepath.Join(curpath, entry.Name())
+	item := &TreeItem{
+		Size:  toPretty(entry.Size()),
+		Name:  entry.Name(),
+		Path:  fname,
+		Entry: entry,
+		URL:   template.URL(getFileURL(tw.PageData.RevData, fname)),
+		Crumbs: crumbs,
+	}
+
+	// `git rev-list` is pretty expensive here, so we have a flag to disable
+	if tw.HideTreeLastCommit {
+		// c.Logger.Info("skipping the process of finding the last commit for each file")
+	} else {
+		id := tw.PageData.RevData.ID()
+		lastCommits, err := tw.Repo.RevList([]string{id}, git.RevListOptions{
+			Path:           item.Path,
+			CommandOptions: git.CommandOptions{Args: []string{"-1"}},
+		})
+		bail(err)
+
+		var lc *git.Commit
+		if len(lastCommits) > 0 {
+			lc = lastCommits[0]
+		}
+		item.CommitURL = getCommitURL(lc.ID.String())
+		item.CommitID = getShortID(lc.ID.String())
+		item.Summary = lc.Summary()
+		item.When = lc.Author.When.Format("02 Jan 06")
+		item.Author = lc.Author
+	}
+
+	fpath := getFileURL(
+		tw.PageData.RevData,
+		fmt.Sprintf("%s.html", fname),
+	)
+	if typ == git.ObjectTree {
+		item.IsDir = true
+		fpath = filepath.Join(
+			getFileBaseDir(tw.PageData.RevData),
+			curpath,
+			entry.Name(),
+			"index.html",
+		)
+	}
+	item.URL = template.URL(fpath)
+
+	return item
 }
 
 func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 	entries, err := tree.Entries()
 	bail(err)
 
+	crumbs := tw.calcBreadcrumbs(curpath)
+	treeEntries := []*TreeItem{}
 	for _, entry := range entries {
-		fname := filepath.Join(curpath, entry.Name())
 		typ := entry.Type()
+		item := tw.NewTreeItem(entry, curpath, crumbs)
 
 		if typ == git.ObjectTree {
+			item.IsDir = true
 			re, _ := tree.Subtree(entry.Name())
-			tw.walk(re, fname)
+			tw.walk(re, item.Path)
+			treeEntries = append(treeEntries, item)
+			tw.treeItem <- item
 		} else if typ == git.ObjectBlob {
-			tw.treeItem <- &TreeItem{
-				Size:  toPretty(entry.Size()),
-				Path:  fname,
-				Entry: entry,
-				URL:   template.URL(getFileURL(tw.revData, fname)),
-			}
+			treeEntries = append(treeEntries, item)
+			tw.treeItem <- item
 		}
 	}
 
+	sort.Slice(treeEntries, func(i, j int) bool {
+		nameI := treeEntries[i].Name
+		nameJ := treeEntries[j].Name
+		if treeEntries[i].IsDir && treeEntries[j].IsDir {
+			return nameI < nameJ
+		}
+
+		if treeEntries[i].IsDir && !treeEntries[j].IsDir {
+			return true
+		}
+
+		return nameI < nameJ
+	})
+
+	fpath := filepath.Join(
+		getFileBaseDir(tw.PageData.RevData),
+		curpath,
+	)
+	// root gets a special spot outside of `item` subdir
 	if curpath == "" {
+		fpath = getTreeBaseDir(tw.PageData.RevData)
+	}
+
+	tw.tree <- &TreeRoot{
+		Path: fpath,
+		Items: treeEntries,
+		Crumbs: crumbs,
+	}
+
+	if curpath == "" {
+		close(tw.tree)
 		close(tw.treeItem)
 	}
 }
@@ -773,12 +915,14 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	tree, err := repo.LsTree(pageData.RevData.ID())
 	bail(err)
 
-	treeEntries := []*TreeItem{}
 	readme := ""
 	entries := make(chan *TreeItem)
+	subtrees := make(chan *TreeRoot)
 	tw := &TreeWalker{
-		revData:  pageData.RevData,
+		PageData: pageData,
+		Repo:     repo,
 		treeItem: entries,
+		tree:     subtrees,
 	}
 	wg.Add(1)
 	go func() {
@@ -786,61 +930,44 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		tw.walk(tree, "")
 	}()
 
-	for e := range entries {
-		wg.Add(1)
-		go func(entry *TreeItem) {
-			defer wg.Done()
-			entry.Path = strings.TrimPrefix(entry.Path, "/")
-
-			var lastCommits []*git.Commit
-			// `git rev-list` is pretty expensive here, so we have a flag to disable
-			if pageData.Repo.HideTreeLastCommit {
-				// c.Logger.Info("skipping the process of finding the last commit for each file")
-			} else {
-				lastCommits, err = repo.RevList([]string{pageData.RevData.ID()}, git.RevListOptions{
-					Path:           entry.Path,
-					CommandOptions: git.CommandOptions{Args: []string{"-1"}},
-				})
-				bail(err)
-
-				var lc *git.Commit
-				if len(lastCommits) > 0 {
-					lc = lastCommits[0]
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for e := range entries {
+			wg.Add(1)
+			go func(entry *TreeItem) {
+				defer wg.Done()
+				if entry.IsDir {
+					return
 				}
-				entry.CommitURL = getCommitURL(lc.ID.String())
-				entry.Summary = lc.Summary()
-				entry.When = lc.Author.When.Format("02 Jan 06")
-			}
 
-			fpath := getFileURL(
-				pageData.RevData,
-				fmt.Sprintf("%s.html", entry.Path),
-			)
-			entry.URL = template.URL(fpath)
+				readmeStr := c.writeHTMLTreeFile(pageData, entry)
+				if readmeStr != "" {
+					readme = readmeStr
+				}
+			}(e)
+		}
+	}()
 
-			readmeStr := c.writeHTMLTreeFile(pageData, entry)
-			if readmeStr != "" {
-				readme = readmeStr
-			}
-			treeEntries = append(treeEntries, entry)
-		}(e)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for t := range subtrees {
+			wg.Add(1)
+			go func(tree *TreeRoot) {
+				defer wg.Done()
+				c.writeTree(pageData, tree)
+			}(t)
+		}
+	}()
 
 	wg.Wait()
-
-	sort.Slice(treeEntries, func(i, j int) bool {
-		nameI := treeEntries[i].Path
-		nameJ := treeEntries[j].Path
-		return nameI < nameJ
-	})
 
 	c.Logger.Infof(
 		"compilation complete (%s) branch (%s)",
 		c.RepoName,
 		pageData.RevData.Name(),
 	)
-
-	c.writeTree(pageData, treeEntries)
 
 	output.Readme = readme
 	return output
