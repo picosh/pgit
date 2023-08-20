@@ -5,6 +5,7 @@
 
 {{define "content"}}
   <div>
+  <div><span class="font-bold">({{.NumCommits}})</span> commits</div>
   {{range .Logs}}
     <div class="box">
       <div class="flex justify-between items-center">

@@ -117,8 +117,10 @@ type CommitData struct {
 
 type TreeItem struct {
 	IsTextFile bool
+	IsDir      bool
 	Size       string
 	NumLines   int
+	Name       string
 	Path       string
 	URL        template.URL
 	CommitURL  template.URL
@@ -181,7 +183,8 @@ type TreePageData struct {
 
 type LogPageData struct {
 	*PageData
-	Logs []*CommitData
+	NumCommits int
+	Logs       []*CommitData
 }
 
 type FilePageData struct {
@@ -347,11 +350,11 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 	})
 }
 
-func (c *Config) writeTree(data *PageData, tree []*TreeItem) {
-	c.Logger.Infof("writing tree (%s)", data.RevData.Name())
+func (c *Config) writeTree(data *PageData, subdir string, tree []*TreeItem) {
+	c.Logger.Infof("writing tree (%s)", subdir)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   getTreeBaseDir(data.RevData),
+		Subdir:   subdir,
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
 			PageData: data,
@@ -367,8 +370,9 @@ func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 		Subdir:   getLogBaseDir(data.RevData),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
-			PageData: data,
-			Logs:     logs,
+			PageData:   data,
+			NumCommits: len(logs),
+			Logs:       logs,
 		},
 	})
 }
@@ -522,8 +526,12 @@ func getLogBaseDir(info RevInfo) string {
 	return filepath.Join("/", "logs", subdir)
 }
 
+func getFileBaseDir(info RevInfo) string {
+	return filepath.Join(getTreeBaseDir(info), "item")
+}
+
 func getFileURL(info RevInfo, fname string) string {
-	return filepath.Join(getTreeBaseDir(info), "item", fname)
+	return filepath.Join(getFileBaseDir(info), fname)
 }
 
 func getTreeURL(info RevInfo) template.URL {
@@ -678,12 +686,60 @@ type TreeRoot struct {
 }
 
 type TreeWalker struct {
-	revData            *RevData
 	treeItem           chan *TreeItem
 	tree               chan *TreeRoot
 	HideTreeLastCommit bool
 	PageData           *PageData
 	Repo               *git.Repository
+}
+
+func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string) *TreeItem {
+	typ := entry.Type()
+	fname := filepath.Join(curpath, entry.Name())
+	item := &TreeItem{
+		Size:  toPretty(entry.Size()),
+		Name:  entry.Name(),
+		Path:  fname,
+		Entry: entry,
+		URL:   template.URL(getFileURL(tw.PageData.RevData, fname)),
+	}
+
+	// `git rev-list` is pretty expensive here, so we have a flag to disable
+	if tw.HideTreeLastCommit {
+		// c.Logger.Info("skipping the process of finding the last commit for each file")
+	} else {
+		id := tw.PageData.RevData.ID()
+		lastCommits, err := tw.Repo.RevList([]string{id}, git.RevListOptions{
+			Path:           item.Path,
+			CommandOptions: git.CommandOptions{Args: []string{"-1"}},
+		})
+		bail(err)
+
+		var lc *git.Commit
+		if len(lastCommits) > 0 {
+			lc = lastCommits[0]
+		}
+		item.CommitURL = getCommitURL(lc.ID.String())
+		item.Summary = lc.Summary()
+		item.When = lc.Author.When.Format("02 Jan 06")
+	}
+
+	fpath := getFileURL(
+		tw.PageData.RevData,
+		fmt.Sprintf("%s.html", fname),
+	)
+	if typ == git.ObjectTree {
+		item.IsDir = true
+		fpath = filepath.Join(
+			getFileBaseDir(tw.PageData.RevData),
+			curpath,
+			entry.Name(),
+			"index.html",
+		)
+	}
+	item.URL = template.URL(fpath)
+
+	return item
 }
 
 func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
@@ -692,60 +748,46 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 
 	treeEntries := []*TreeItem{}
 	for _, entry := range entries {
-		fname := filepath.Join(curpath, entry.Name())
 		typ := entry.Type()
+		item := tw.NewTreeItem(entry, curpath)
 
 		if typ == git.ObjectTree {
+			item.IsDir = true
 			re, _ := tree.Subtree(entry.Name())
-			tw.walk(re, fname)
+			tw.walk(re, item.Path)
+			treeEntries = append(treeEntries, item)
+			tw.treeItem <- item
 		} else if typ == git.ObjectBlob {
-			item := &TreeItem{
-				Size:  toPretty(entry.Size()),
-				Path:  fname,
-				Entry: entry,
-				URL:   template.URL(getFileURL(tw.revData, fname)),
-			}
-			item.Path = strings.TrimPrefix(item.Path, "/")
-
-			var lastCommits []*git.Commit
-			// `git rev-list` is pretty expensive here, so we have a flag to disable
-			if tw.HideTreeLastCommit {
-				// c.Logger.Info("skipping the process of finding the last commit for each file")
-			} else {
-				lastCommits, err = tw.Repo.RevList([]string{tw.PageData.RevData.ID()}, git.RevListOptions{
-					Path:           item.Path,
-					CommandOptions: git.CommandOptions{Args: []string{"-1"}},
-				})
-				bail(err)
-
-				var lc *git.Commit
-				if len(lastCommits) > 0 {
-					lc = lastCommits[0]
-				}
-				item.CommitURL = getCommitURL(lc.ID.String())
-				item.Summary = lc.Summary()
-				item.When = lc.Author.When.Format("02 Jan 06")
-			}
-
-			fpath := getFileURL(
-				tw.PageData.RevData,
-				fmt.Sprintf("%s.html", item.Path),
-			)
-			item.URL = template.URL(fpath)
-
 			treeEntries = append(treeEntries, item)
 			tw.treeItem <- item
 		}
 	}
 
 	sort.Slice(treeEntries, func(i, j int) bool {
-		nameI := treeEntries[i].Path
-		nameJ := treeEntries[j].Path
+		nameI := treeEntries[i].Name
+		nameJ := treeEntries[j].Name
+		if treeEntries[i].IsDir && treeEntries[j].IsDir {
+			return nameI < nameJ
+		}
+
+		if treeEntries[i].IsDir && !treeEntries[j].IsDir {
+			return true
+		}
+
 		return nameI < nameJ
 	})
 
+	fpath := filepath.Join(
+		getFileBaseDir(tw.PageData.RevData),
+		curpath,
+	)
+	// root gets a special spot outside of `item` subdir
+	if curpath == "" {
+		fpath = getTreeBaseDir(tw.PageData.RevData)
+	}
+
 	tw.tree <- &TreeRoot{
-		Path: curpath,
+		Path: fpath,
 		Tree: treeEntries,
 	}
 
@@ -829,7 +871,8 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	entries := make(chan *TreeItem)
 	subtrees := make(chan *TreeRoot)
 	tw := &TreeWalker{
-		revData:  pageData.RevData,
+		PageData: pageData,
+		Repo:     repo,
 		treeItem: entries,
 		tree:     subtrees,
 	}
@@ -846,6 +889,10 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			wg.Add(1)
 			go func(entry *TreeItem) {
 				defer wg.Done()
+				if entry.IsDir {
+					return
+				}
+
 				readmeStr := c.writeHTMLTreeFile(pageData, entry)
 				if readmeStr != "" {
 					readme = readmeStr
@@ -861,7 +908,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			wg.Add(1)
 			go func(tree *TreeRoot) {
 				defer wg.Done()
-				c.writeTree(pageData, tree.Tree)
+				c.writeTree(pageData, tree.Path, tree.Tree)
 			}(t)
 		}
 	}()

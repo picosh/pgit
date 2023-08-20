@@ -8,7 +8,7 @@
   {{range .Tree}}
     <div class="flex justify-between items-center gap my-sm border-b">
       <div class="flex-1 tree-path">
-        <a href="{{.URL}}">{{.Path}}</a>
+        <a href="{{.URL}}">{{.Name}}{{if .IsDir}}/{{end}}</a>
       </div>
 
       <div class="flex items-center gap">
@@ -19,7 +19,10 @@
         </div>
         {{end}}
         <div class="tree-size">
-          {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
+          {{if .IsDir}}
+          {{else}}
+            {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
+          {{end}}
         </div>
       </div>
     </div>
