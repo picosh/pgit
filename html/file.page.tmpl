@@ -5,6 +5,13 @@
 {{end}}
 
 {{define "content"}}
-  <h2 class="text-lg">{{.Path}}</h2>
+  <div class="text-md">
+    {{range .Crumbs}}
+      <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}/{{end}}
+    {{end}}
+  </div>
+
+  <h2 class="text-lg">{{.Name}}</h2>
+
   {{.Contents}}
 {{end }}

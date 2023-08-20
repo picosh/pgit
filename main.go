@@ -127,6 +127,7 @@ type TreeItem struct {
 	Summary    string
 	When       string
 	Entry      *git.TreeEntry
+	Crumbs []*Breadcrumb
 }
 
 type DiffRender struct {
@@ -178,7 +179,7 @@ type SummaryPageData struct {
 
 type TreePageData struct {
 	*PageData
-	Tree []*TreeItem
+	Tree *TreeRoot
 }
 
 type LogPageData struct {
@@ -190,7 +191,9 @@ type LogPageData struct {
 type FilePageData struct {
 	*PageData
 	Contents template.HTML
-	Path     string
+	Path string
+	Name     string
+	Crumbs []*Breadcrumb
 }
 
 type CommitPageData struct {
@@ -350,11 +353,11 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 	})
 }
 
-func (c *Config) writeTree(data *PageData, subdir string, tree []*TreeItem) {
-	c.Logger.Infof("writing tree (%s)", subdir)
+func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
+	c.Logger.Infof("writing tree (%s)", tree.Path)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
-		Subdir:   subdir,
+		Subdir:   tree.Path,
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
 			PageData: data,
@@ -418,7 +421,9 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Data: &FilePageData{
 			PageData: pageData,
 			Contents: template.HTML(contents),
-			Path:     treeItem.Path,
+			Path: treeItem.Path,
+			Name:     treeItem.Name,
+			Crumbs: treeItem.Crumbs,
 		},
 		Subdir: getFileURL(pageData.RevData, d),
 	})
@@ -682,7 +687,8 @@ func (c *Config) writeRepo() *BranchOutput {
 
 type TreeRoot struct {
 	Path string
-	Tree []*TreeItem
+	Items []*TreeItem
+	Crumbs []*Breadcrumb
 }
 
 type TreeWalker struct {
@@ -693,7 +699,46 @@ type TreeWalker struct {
 	Repo               *git.Repository
 }
 
-func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string) *TreeItem {
+type Breadcrumb struct {
+	Text string
+	URL template.URL
+	IsLast bool
+}
+
+func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
+	if curpath == "" {
+		return []*Breadcrumb{}
+	}
+	parts := strings.Split(curpath, string(os.PathSeparator))
+	rootURL := template.URL(
+		filepath.Join(
+			getTreeBaseDir(tw.PageData.RevData),
+			"index.html",
+		),
+	)
+
+	crumbs := make([]*Breadcrumb, len(parts)+1)
+	crumbs[0] = &Breadcrumb {
+		URL: rootURL,
+		Text: tw.PageData.Repo.RepoName,
+	}
+
+	cur := ""
+	for idx, d := range parts {
+		crumbs[idx+1] = &Breadcrumb{
+			Text: d,
+			URL: template.URL(filepath.Join(getFileBaseDir(tw.PageData.RevData), cur, d, "index.html")),
+		}
+		if idx == len(parts) - 1 {
+			crumbs[idx+1].IsLast = true
+		}
+		cur = filepath.Join(cur, d)
+	}
+
+	return crumbs
+}
+
+func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs []*Breadcrumb) *TreeItem {
 	typ := entry.Type()
 	fname := filepath.Join(curpath, entry.Name())
 	item := &TreeItem{
@@ -702,6 +747,7 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string) *TreeIte
 		Path:  fname,
 		Entry: entry,
 		URL:   template.URL(getFileURL(tw.PageData.RevData, fname)),
+		Crumbs: crumbs,
 	}
 
 	// `git rev-list` is pretty expensive here, so we have a flag to disable
@@ -746,10 +792,11 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 	entries, err := tree.Entries()
 	bail(err)
 
+	crumbs := tw.calcBreadcrumbs(curpath)
 	treeEntries := []*TreeItem{}
 	for _, entry := range entries {
 		typ := entry.Type()
-		item := tw.NewTreeItem(entry, curpath)
+		item := tw.NewTreeItem(entry, curpath, crumbs)
 
 		if typ == git.ObjectTree {
 			item.IsDir = true
@@ -788,7 +835,8 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 
 	tw.tree <- &TreeRoot{
 		Path: fpath,
-		Tree: treeEntries,
+		Items: treeEntries,
+		Crumbs: crumbs,
 	}
 
 	if curpath == "" {
@@ -908,7 +956,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			wg.Add(1)
 			go func(tree *TreeRoot) {
 				defer wg.Done()
-				c.writeTree(pageData, tree.Path, tree.Tree)
+				c.writeTree(pageData, tree)
 			}(t)
 		}
 	}()

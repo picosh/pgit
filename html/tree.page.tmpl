@@ -5,27 +5,37 @@
 
 {{define "content"}}
   <div>
-  {{range .Tree}}
-    <div class="flex justify-between items-center gap my-sm border-b">
-      <div class="flex-1 tree-path">
-        <a href="{{.URL}}">{{.Name}}{{if .IsDir}}/{{end}}</a>
-      </div>
-
-      <div class="flex items-center gap">
-        {{if $.Repo.HideTreeLastCommit}}
+    <div class="text-md mb">
+      {{range .Tree.Crumbs}}
+        {{if .IsLast}}
+          <span class="font-bold">{{.Text}}</span>
         {{else}}
-        <div class="flex-1 tree-commit">
-          <a href="{{.CommitURL}}" title="{{.Summary}}">{{.When}}</a>
-        </div>
+          <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}/{{end}}
         {{end}}
-        <div class="tree-size">
-          {{if .IsDir}}
+      {{end}}
+    </div>
+
+    {{range .Tree.Items}}
+      <div class="flex justify-between items-center gap my-sm border-b">
+        <div class="flex-1 tree-path">
+          <a href="{{.URL}}">{{.Name}}{{if .IsDir}}/{{end}}</a>
+        </div>
+
+        <div class="flex items-center gap">
+          {{if $.Repo.HideTreeLastCommit}}
           {{else}}
-            {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
+          <div class="flex-1 tree-commit">
+            <a href="{{.CommitURL}}" title="{{.Summary}}">{{.When}}</a>
+          </div>
           {{end}}
+          <div class="tree-size">
+            {{if .IsDir}}
+            {{else}}
+              {{if .IsTextFile}}{{.NumLines}} L{{else}}{{.Size}}{{end}}
+            {{end}}
+          </div>
         </div>
       </div>
-    </div>
-  {{end}}
+    {{end}}
   </div>
 {{end}}
