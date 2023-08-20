@@ -16,7 +16,7 @@
     </div>
 
     {{range .Tree.Items}}
-      <div class="flex justify-between items-center gap my-sm border-b">
+      <div class="flex justify-between items-center gap p-sm border-b tree-row">
         <div class="flex-1 tree-path">
           <a href="{{.URL}}">{{.Name}}{{if .IsDir}}/{{end}}</a>
         </div>

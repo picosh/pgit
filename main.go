@@ -123,9 +123,11 @@ type TreeItem struct {
 	Name       string
 	Path       string
 	URL        template.URL
+	CommitID string
 	CommitURL  template.URL
 	Summary    string
 	When       string
+	Author *git.Signature
 	Entry      *git.TreeEntry
 	Crumbs []*Breadcrumb
 }
@@ -191,9 +193,7 @@ type LogPageData struct {
 type FilePageData struct {
 	*PageData
 	Contents template.HTML
-	Path string
-	Name     string
-	Crumbs []*Breadcrumb
+	Item *TreeItem
 }
 
 type CommitPageData struct {
@@ -421,9 +421,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Data: &FilePageData{
 			PageData: pageData,
 			Contents: template.HTML(contents),
-			Path: treeItem.Path,
-			Name:     treeItem.Name,
-			Crumbs: treeItem.Crumbs,
+			Item: treeItem,
 		},
 		Subdir: getFileURL(pageData.RevData, d),
 	})
@@ -766,8 +764,10 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 			lc = lastCommits[0]
 		}
 		item.CommitURL = getCommitURL(lc.ID.String())
+		item.CommitID = getShortID(lc.ID.String())
 		item.Summary = lc.Summary()
 		item.When = lc.Author.When.Format("02 Jan 06")
+		item.Author = lc.Author
 	}
 
 	fpath := getFileURL(

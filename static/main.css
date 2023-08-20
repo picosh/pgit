@@ -140,7 +140,7 @@ hr {
   margin: 0;
   height: 1px;
   background: var(--grey);
-  margin: 2rem auto;
+  margin: 1rem auto;
   text-align: center;
 }
 
@@ -347,6 +347,10 @@ figure {
   margin-right: 1rem;
 }
 
+.p-sm {
+  padding: 0.5rem;
+}
+
 .justify-between {
   justify-content: space-between;
 }
@@ -357,6 +361,10 @@ figure {
 
 .gap {
   gap: 1rem;
+}
+
+.gap-xs {
+  gap: 0.25rem;
 }
 
 .border-b {
@@ -370,6 +378,10 @@ figure {
 
 .tree-path {
   text-wrap: wrap;
+}
+
+.tree-row:hover {
+  background-color: var(--grey);
 }
 
 @media only screen and (max-width: 900px) {
