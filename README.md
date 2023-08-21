@@ -12,6 +12,8 @@ make build
 ./pgit --revs main --label pico --out ./public
 ```
 
+To learn more about the options run:
+
 ```bash
 ./pgit --help
 ```
