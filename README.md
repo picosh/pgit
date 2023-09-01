@@ -22,3 +22,8 @@ To learn more about the options run:
 ```bash
 ./pgit --help
 ```
+
+# inspiration
+
+This project was heavily inspired by
+[stagit](https://codemadness.org/stagit.html)
