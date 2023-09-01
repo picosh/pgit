@@ -123,13 +123,13 @@ type TreeItem struct {
 	Name       string
 	Path       string
 	URL        template.URL
-	CommitID string
+	CommitID   string
 	CommitURL  template.URL
 	Summary    string
 	When       string
-	Author *git.Signature
+	Author     *git.Signature
 	Entry      *git.TreeEntry
-	Crumbs []*Breadcrumb
+	Crumbs     []*Breadcrumb
 }
 
 type DiffRender struct {
@@ -193,7 +193,7 @@ type LogPageData struct {
 type FilePageData struct {
 	*PageData
 	Contents template.HTML
-	Item *TreeItem
+	Item     *TreeItem
 }
 
 type CommitPageData struct {
@@ -421,7 +421,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Data: &FilePageData{
 			PageData: pageData,
 			Contents: template.HTML(contents),
-			Item: treeItem,
+			Item:     treeItem,
 		},
 		Subdir: getFileURL(pageData.RevData, d),
 	})
@@ -684,8 +684,8 @@ func (c *Config) writeRepo() *BranchOutput {
 }
 
 type TreeRoot struct {
-	Path string
-	Items []*TreeItem
+	Path   string
+	Items  []*TreeItem
 	Crumbs []*Breadcrumb
 }
 
@@ -698,8 +698,8 @@ type TreeWalker struct {
 }
 
 type Breadcrumb struct {
-	Text string
-	URL template.URL
+	Text   string
+	URL    template.URL
 	IsLast bool
 }
 
@@ -716,8 +716,8 @@ func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
 	)
 
 	crumbs := make([]*Breadcrumb, len(parts)+1)
-	crumbs[0] = &Breadcrumb {
-		URL: rootURL,
+	crumbs[0] = &Breadcrumb{
+		URL:  rootURL,
 		Text: tw.PageData.Repo.RepoName,
 	}
 
@@ -725,9 +725,9 @@ func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
 	for idx, d := range parts {
 		crumbs[idx+1] = &Breadcrumb{
 			Text: d,
-			URL: template.URL(filepath.Join(getFileBaseDir(tw.PageData.RevData), cur, d, "index.html")),
+			URL:  template.URL(filepath.Join(getFileBaseDir(tw.PageData.RevData), cur, d, "index.html")),
 		}
-		if idx == len(parts) - 1 {
+		if idx == len(parts)-1 {
 			crumbs[idx+1].IsLast = true
 		}
 		cur = filepath.Join(cur, d)
@@ -740,11 +740,11 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 	typ := entry.Type()
 	fname := filepath.Join(curpath, entry.Name())
 	item := &TreeItem{
-		Size:  toPretty(entry.Size()),
-		Name:  entry.Name(),
-		Path:  fname,
-		Entry: entry,
-		URL:   template.URL(getFileURL(tw.PageData.RevData, fname)),
+		Size:   toPretty(entry.Size()),
+		Name:   entry.Name(),
+		Path:   fname,
+		Entry:  entry,
+		URL:    template.URL(getFileURL(tw.PageData.RevData, fname)),
 		Crumbs: crumbs,
 	}
 
@@ -834,8 +834,8 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 	}
 
 	tw.tree <- &TreeRoot{
-		Path: fpath,
-		Items: treeEntries,
+		Path:   fpath,
+		Items:  treeEntries,
 		Crumbs: crumbs,
 	}
 
