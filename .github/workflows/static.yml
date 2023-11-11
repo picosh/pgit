@@ -34,7 +34,7 @@ jobs:
         with:
           user: hey
           key: ${{ secrets.PRIVATE_KEY }}
-          src: './public'
+          src: './public/'
           project: "git-pgit-${{ steps.vars.outputs.sha_short }}"
           promote: "git-pgit"
           retain: "git-pgit-"
