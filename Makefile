@@ -1,6 +1,10 @@
 REV=$(shell git rev-parse --short HEAD)
 PROJECT="git-pgit-$(REV)"
 
+smol:
+	curl https://pico.sh/smol.css -o ./static/smol.css
+.PHONY: smol
+
 clean:
 	rm -rf ./public
 .PHONY: clean
@@ -28,6 +32,7 @@ static: build clean
 .PHONY:
 
 deploy:
-	rsync -rv ./public/* erock@pgs.sh:/$(PROJECT)
-	ssh erock@pgs.sh link git-pgit $(PROJECT) --write
+	rsync -rv ./public/* hey@pgs.sh:/git-pgit-local
+	# $(PROJECT)
+	# ssh hey@pgs.sh link git-pgit $(PROJECT) --write
 .PHONY: deploy

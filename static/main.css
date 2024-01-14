@@ -1,3 +1,7 @@
+.border-b {
+  border-bottom: 1px solid var(--grey);
+}
+
 body {
   max-width: 900px;
 }

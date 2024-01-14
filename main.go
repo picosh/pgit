@@ -24,11 +24,8 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:embed static/main.css
-var mainCss []byte
-
-//go:embed static/syntax.css
-var syntaxCss []byte
+//go:embed static/*
+var sfs embed.FS
 
 //go:embed html/*.tmpl
 var efs embed.FS
@@ -120,7 +117,7 @@ type TreeItem struct {
 	Size       string
 	NumLines   int
 	Name       string
-	Icon string
+	Icon       string
 	Path       string
 	URL        template.URL
 	CommitID   string
@@ -335,10 +332,25 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 }
 
-func (c *Config) copyStatic(dst string, data []byte) {
-	c.Logger.Infof("writing (%s)", dst)
-	err := os.WriteFile(dst, data, 0755)
+func (c *Config) copyStatic() error {
+	dir := "static"
+	entries, err := sfs.ReadDir(dir)
 	bail(err)
+
+	for _, e := range entries {
+		infp := filepath.Join(dir, e.Name())
+		if e.IsDir() {
+			continue
+		}
+
+		w, err := os.ReadFile(infp)
+		bail(err)
+		fp := filepath.Join(c.Outdir, e.Name())
+		c.Logger.Infof("writing (%s)", fp)
+		os.WriteFile(fp, w, 0755)
+	}
+
+	return nil
 }
 
 func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
@@ -740,15 +752,18 @@ func FilenameToDevIcon(filename string) string {
 	ext := filepath.Ext(filename)
 	extMappr := map[string]string{
 		".html": "html5",
-		".go": "go",
-		".py": "python",
-		".css": "css3",
-		".js": "javascript",
-		".md": "markdown",
+		".go":   "go",
+		".py":   "python",
+		".css":  "css3",
+		".js":   "javascript",
+		".md":   "markdown",
+		".ts":   "typescript",
+		".tsx":  "react",
+		".jsx":  "react",
 	}
 
-	nameMappr := map[string]string {
-		"Makefile": "cmake",
+	nameMappr := map[string]string{
+		"Makefile":   "cmake",
 		"Dockerfile": "docker",
 	}
 
@@ -890,9 +905,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		if pageSize == 0 {
 			pageSize = 5000
 		}
-		fmt.Println("grabbing commits")
 		commits, err := repo.CommitsByPage(pageData.RevData.ID(), 0, pageSize)
-		fmt.Println("got commits")
 		bail(err)
 
 		logs := []*CommitData{}
@@ -1058,9 +1071,7 @@ func main() {
 	}
 
 	config.writeRepo()
-
-	config.copyStatic(filepath.Join(config.Outdir, "main.css"), mainCss)
-	config.copyStatic(filepath.Join(config.Outdir, "syntax.css"), syntaxCss)
+	config.copyStatic()
 
 	url := filepath.Join("/", "index.html")
 	config.Logger.Info(url)
