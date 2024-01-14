@@ -28,6 +28,6 @@ static: build clean
 .PHONY:
 
 deploy:
-	scp -r ./public/* erock@pgs.sh:/$(PROJECT)
-	ssh erock@pgs.sh git-pgit link $(PROJECT)
+	rsync -rv ./public/* erock@pgs.sh:/$(PROJECT)
+	ssh erock@pgs.sh link git-pgit $(PROJECT) --write
 .PHONY: deploy

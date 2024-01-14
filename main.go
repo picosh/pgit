@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -121,6 +120,7 @@ type TreeItem struct {
 	Size       string
 	NumLines   int
 	Name       string
+	Icon string
 	Path       string
 	URL        template.URL
 	CommitID   string
@@ -337,7 +337,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 
 func (c *Config) copyStatic(dst string, data []byte) {
 	c.Logger.Infof("writing (%s)", dst)
-	err := ioutil.WriteFile(dst, data, 0755)
+	err := os.WriteFile(dst, data, 0755)
 	bail(err)
 }
 
@@ -736,6 +736,30 @@ func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
 	return crumbs
 }
 
+func FilenameToDevIcon(filename string) string {
+	ext := filepath.Ext(filename)
+	extMappr := map[string]string{
+		".html": "html5",
+		".go": "go",
+		".py": "python",
+		".css": "css3",
+		".js": "javascript",
+		".md": "markdown",
+	}
+
+	nameMappr := map[string]string {
+		"Makefile": "cmake",
+		"Dockerfile": "docker",
+	}
+
+	icon := extMappr[ext]
+	if icon == "" {
+		icon = nameMappr[filename]
+	}
+
+	return fmt.Sprintf("devicon-%s-original", icon)
+}
+
 func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs []*Breadcrumb) *TreeItem {
 	typ := entry.Type()
 	fname := filepath.Join(curpath, entry.Name())
@@ -782,6 +806,8 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 			entry.Name(),
 			"index.html",
 		)
+	} else if typ == git.ObjectBlob {
+		item.Icon = FilenameToDevIcon(item.Name)
 	}
 	item.URL = template.URL(fpath)
 
