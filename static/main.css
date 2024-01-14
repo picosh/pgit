@@ -2,6 +2,10 @@
   border-bottom: 1px solid var(--grey);
 }
 
+.border-b:last-child {
+  border-bottom: 0;
+}
+
 body {
   max-width: 900px;
 }
