@@ -24,10 +24,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:embed static/*
-var sfs embed.FS
-
-//go:embed html/*.tmpl
+//go:embed html/*.tmpl static/*
 var efs embed.FS
 
 type Config struct {
@@ -332,9 +329,8 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 }
 
-func (c *Config) copyStatic() error {
-	dir := "static"
-	entries, err := sfs.ReadDir(dir)
+func (c *Config) copyStatic(dir string) error {
+	entries, err := efs.ReadDir(dir)
 	bail(err)
 
 	for _, e := range entries {
@@ -343,7 +339,7 @@ func (c *Config) copyStatic() error {
 			continue
 		}
 
-		w, err := os.ReadFile(infp)
+		w, err := efs.ReadFile(infp)
 		bail(err)
 		fp := filepath.Join(c.Outdir, e.Name())
 		c.Logger.Infof("writing (%s)", fp)
@@ -1071,7 +1067,7 @@ func main() {
 	}
 
 	config.writeRepo()
-	config.copyStatic()
+	config.copyStatic("static")
 
 	url := filepath.Join("/", "index.html")
 	config.Logger.Info(url)
