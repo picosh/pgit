@@ -38,3 +38,4 @@ jobs:
           project: "git-pgit-${{ steps.vars.outputs.sha_short }}"
           promote: "git-pgit"
           retain: "git-pgit-"
+          retain_num: 1
