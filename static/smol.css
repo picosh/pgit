@@ -548,20 +548,9 @@ figure {
 
 .box {
   border: 2px solid var(--grey-light);
-  border-radius: .5rem;
   padding: 1rem;
   text-decoration: none;
   box-shadow: 0px 5px 0px 0px var(--shadow);
-  color: var(--white);
-}
-
-.box:hover {
-  border: 2px solid var(--white);
-}
-
-.box:visited,
-.box:visited:hover,
-.box:hover {
   color: var(--white);
 }
 
