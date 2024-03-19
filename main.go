@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
+	"log/slog"
 
 	"github.com/alecthomas/chroma"
 	formatterHtml "github.com/alecthomas/chroma/formatters/html"
@@ -21,7 +22,6 @@ import (
 	"github.com/alecthomas/chroma/styles"
 	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
-	"go.uber.org/zap"
 )
 
 //go:embed html/*.tmpl static/*
@@ -60,7 +60,7 @@ type Config struct {
 	// pretty name for the repo
 	RepoName string
 	// logger
-	Logger *zap.SugaredLogger
+	Logger *slog.Logger
 	// chroma style
 	Theme *chroma.Style
 }
@@ -320,7 +320,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 
 	fp := filepath.Join(dir, writeData.Filename)
-	c.Logger.Infof("writing (%s)", fp)
+	c.Logger.Info("writing", "filepath", fp)
 
 	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	bail(err)
@@ -342,7 +342,7 @@ func (c *Config) copyStatic(dir string) error {
 		w, err := efs.ReadFile(infp)
 		bail(err)
 		fp := filepath.Join(c.Outdir, e.Name())
-		c.Logger.Infof("writing (%s)", fp)
+		c.Logger.Info("writing", "filepath", fp)
 		os.WriteFile(fp, w, 0755)
 	}
 
@@ -350,7 +350,7 @@ func (c *Config) copyStatic(dir string) error {
 }
 
 func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
-	c.Logger.Infof("writing root html (%s)", c.RepoPath)
+	c.Logger.Info("writing root html", "repoPath", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Template: "html/summary.page.tmpl",
@@ -362,7 +362,7 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 }
 
 func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
-	c.Logger.Infof("writing tree (%s)", tree.Path)
+	c.Logger.Info("writing tree", "treePath", tree.Path)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   tree.Path,
@@ -375,7 +375,7 @@ func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
 }
 
 func (c *Config) writeLog(data *PageData, logs []*CommitData) {
-	c.Logger.Infof("writing log file (%s)", data.RevData.Name())
+	c.Logger.Info("writing log file", "revision", data.RevData.Name())
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   getLogBaseDir(data.RevData),
@@ -389,7 +389,7 @@ func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 }
 
 func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
-	c.Logger.Infof("writing refs (%s)", c.RepoPath)
+	c.Logger.Info("writing refs", "repoPath", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "refs.html",
 		Template: "html/refs.page.tmpl",
@@ -444,7 +444,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 	c.Mutex.RUnlock()
 
 	if hasCommit {
-		c.Logger.Infof("(%s) commit file already generated, skipping", getShortID(commitID))
+		c.Logger.Info("commit file already generated, skipping", "commitID", getShortID(commitID))
 		return
 	} else {
 		c.Mutex.Lock()
@@ -576,7 +576,7 @@ func getShortID(id string) string {
 }
 
 func (c *Config) writeRepo() *BranchOutput {
-	c.Logger.Infof("Writing repo (%s)", c.RepoPath)
+	c.Logger.Info("writing repo", "repoPath", c.RepoPath)
 	repo, err := git.Open(c.RepoPath)
 	bail(err)
 
@@ -656,7 +656,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	})
 
 	for _, revData := range revs {
-		c.Logger.Infof("Writing revision (%s)", revData.Name())
+		c.Logger.Info("writing revision", "revision", revData.Name())
 		data := &PageData{
 			Repo:     c,
 			RevData:  revData,
@@ -858,6 +858,10 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 			return true
 		}
 
+		if !treeEntries[i].IsDir && treeEntries[j].IsDir {
+			return false
+		}
+
 		return nameI < nameJ
 	})
 
@@ -883,10 +887,10 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 }
 
 func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []*RefInfo) *BranchOutput {
-	c.Logger.Infof(
-		"compiling (%s) revision (%s)",
-		c.RepoName,
-		pageData.RevData.Name(),
+	c.Logger.Info(
+		"compiling revision",
+		"repoName", c.RepoName,
+		"revision", pageData.RevData.Name(),
 	)
 
 	output := &BranchOutput{}
@@ -998,10 +1002,10 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 
 	wg.Wait()
 
-	c.Logger.Infof(
-		"compilation complete (%s) branch (%s)",
-		c.RepoName,
-		pageData.RevData.Name(),
+	c.Logger.Info(
+		"compilation complete branch",
+		"repoName", c.RepoName,
+		"revision", pageData.RevData.Name(),
 	)
 
 	output.Readme = readme
@@ -1029,12 +1033,7 @@ func main() {
 
 	theme := styles.Get(*themeFlag)
 
-	lg, err := zap.NewProduction()
-	if err != nil {
-		bail(err)
-	}
-
-	logger := lg.Sugar()
+	logger := slog.Default()
 
 	label := repoName(repoPath)
 	if *labelFlag != "" {
@@ -1060,7 +1059,7 @@ func main() {
 		MaxCommits:         *maxCommitsFlag,
 		HideTreeLastCommit: *hideTreeLastCommitFlag,
 	}
-	config.Logger.Infof("%+v", config)
+	config.Logger.Info("config", "config", config)
 
 	if len(revs) == 0 {
 		bail(fmt.Errorf("you must provide --revs"))
@@ -1070,5 +1069,5 @@ func main() {
 	config.copyStatic("static")
 
 	url := filepath.Join("/", "index.html")
-	config.Logger.Info(url)
+	config.Logger.Info("root url", "url", url)
 }
