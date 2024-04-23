@@ -322,7 +322,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	fp := filepath.Join(dir, writeData.Filename)
 	c.Logger.Info("writing", "filepath", fp)
 
-	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	bail(err)
 
 	err = ts.Execute(w, writeData.Data)
