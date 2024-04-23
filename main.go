@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
-	"log/slog"
 
 	"github.com/alecthomas/chroma"
 	formatterHtml "github.com/alecthomas/chroma/formatters/html"
@@ -62,7 +62,8 @@ type Config struct {
 	// logger
 	Logger *slog.Logger
 	// chroma style
-	Theme *chroma.Style
+	Theme     *chroma.Style
+	Formatter *formatterHtml.Formatter
 }
 
 type RevInfo interface {
@@ -234,12 +235,7 @@ func diffFileType(_type git.DiffFileType) string {
 }
 
 // converts contents of files in git tree to pretty formatted code
-func parseText(filename string, text string, style *chroma.Style) (string, error) {
-	formatter := formatterHtml.New(
-		formatterHtml.WithLineNumbers(true),
-		formatterHtml.LinkableLineNumbers(true, ""),
-		formatterHtml.WithClasses(true),
-	)
+func (c *Config) parseText(filename string, text string) (string, error) {
 	lexer := lexers.Match(filename)
 	if lexer == nil {
 		lexer = lexers.Analyse(text)
@@ -252,7 +248,7 @@ func parseText(filename string, text string, style *chroma.Style) (string, error
 		return text, err
 	}
 	var buf bytes.Buffer
-	err = formatter.Format(&buf, style, iterator)
+	err = c.Formatter.Format(&buf, c.Theme, iterator)
 	if err != nil {
 		return text, err
 	}
@@ -343,7 +339,7 @@ func (c *Config) copyStatic(dir string) error {
 		bail(err)
 		fp := filepath.Join(c.Outdir, e.Name())
 		c.Logger.Info("writing", "filepath", fp)
-		os.WriteFile(fp, w, 0755)
+		os.WriteFile(fp, w, 0644)
 	}
 
 	return nil
@@ -411,7 +407,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 	contents := "binary file, cannot display"
 	if treeItem.IsTextFile {
 		treeItem.NumLines = len(strings.Split(str, "\n"))
-		contents, err = parseText(treeItem.Entry.Name(), string(b), c.Theme)
+		contents, err = c.parseText(treeItem.Entry.Name(), string(b))
 		bail(err)
 	}
 
@@ -484,7 +480,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 			}
 		}
 		// set filename to something our `ParseText` recognizes (e.g. `.diff`)
-		finContent, err := parseText("commit.diff", content, c.Theme)
+		finContent, err := c.parseText("commit.diff", content)
 		bail(err)
 
 		fl.Content = template.HTML(finContent)
@@ -1045,6 +1041,12 @@ func main() {
 		revs = []string{}
 	}
 
+	formatter := formatterHtml.New(
+		formatterHtml.WithLineNumbers(true),
+		formatterHtml.LinkableLineNumbers(true, ""),
+		formatterHtml.WithClasses(true),
+	)
+
 	config := &Config{
 		Outdir:             out,
 		RepoPath:           repoPath,
@@ -1058,6 +1060,7 @@ func main() {
 		Desc:               *descFlag,
 		MaxCommits:         *maxCommitsFlag,
 		HideTreeLastCommit: *hideTreeLastCommitFlag,
+		Formatter:          formatter,
 	}
 	config.Logger.Info("config", "config", config)
 
@@ -1067,6 +1070,16 @@ func main() {
 
 	config.writeRepo()
 	config.copyStatic("static")
+
+	fp := filepath.Join(out, "syntax.css")
+	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		bail(err)
+	}
+	err = formatter.WriteCSS(w, theme)
+	if err != nil {
+		bail(err)
+	}
 
 	url := filepath.Join("/", "index.html")
 	config.Logger.Info("root url", "url", url)

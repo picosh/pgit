@@ -28,11 +28,10 @@ static: build clean
 		--desc "static site generator for git" \
 		--clone-url "https://github.com/picosh/pgit.git" \
 		--home-url "https://git.erock.io" \
+		--theme "algol" \
 		--revs main
 .PHONY:
 
-deploy:
-	rsync -rv ./public/* hey@pgs.sh:/git-pgit-local
-	# $(PROJECT)
-	# ssh hey@pgs.sh link git-pgit $(PROJECT) --write
-.PHONY: deploy
+dev: static
+	rsync -rv ./public/* pgs.sh:/git-pgit-local
+.PHONY: dev
