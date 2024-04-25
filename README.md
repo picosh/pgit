@@ -23,6 +23,22 @@ To learn more about the options run:
 ./pgit --help
 ```
 
+## themes
+
+We support all [chroma](https://xyproto.github.io/splash/docs/all.html) themes.
+We do our best to adapt the theme of the entire site to match the chroma syntax
+highlighting theme. This is a "closet approximation" as we are not testing every
+single theme.
+
+```bash
+./pgit --revs main --label pico --out ./public --theme onedark
+```
+
+The default theme is `dracula`. If you want to change the colors for your site,
+we generate a `vars.css` file that you are welcome to overwrite before
+deploying, it will _not_ change the syntax highlighting colors, only the main
+site colors.
+
 # inspiration
 
 This project was heavily inspired by

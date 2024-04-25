@@ -16,10 +16,10 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/alecthomas/chroma"
-	formatterHtml "github.com/alecthomas/chroma/formatters/html"
-	"github.com/alecthomas/chroma/lexers"
-	"github.com/alecthomas/chroma/styles"
+	"github.com/alecthomas/chroma/v2"
+	formatterHtml "github.com/alecthomas/chroma/v2/formatters/html"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
 )
@@ -1008,6 +1008,30 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	return output
 }
 
+func style(theme chroma.Style) string {
+	bg := theme.Get(chroma.Background)
+	txt := theme.Get(chroma.Text)
+	kw := theme.Get(chroma.Keyword)
+	nv := theme.Get(chroma.NameVariable)
+	cm := theme.Get(chroma.Comment)
+	ln := theme.Get(chroma.LiteralNumber)
+	return fmt.Sprintf(`:root {
+  --bg-color: %s;
+  --text-color: %s;
+  --border: %s;
+  --link-color: %s;
+  --hover: %s;
+  --visited: %s;
+}`,
+		bg.Background.String(),
+		txt.Colour.String(),
+		cm.Colour.String(),
+		nv.Colour.String(),
+		kw.Colour.String(),
+		ln.Colour.String(),
+	)
+}
+
 func main() {
 	var outdir = flag.String("out", "./public", "output directory")
 	var rpath = flag.String("repo", ".", "path to git repo")
@@ -1043,7 +1067,7 @@ func main() {
 
 	formatter := formatterHtml.New(
 		formatterHtml.WithLineNumbers(true),
-		formatterHtml.LinkableLineNumbers(true, ""),
+		formatterHtml.WithLinkableLineNumbers(true, ""),
 		formatterHtml.WithClasses(true),
 	)
 
@@ -1070,6 +1094,13 @@ func main() {
 
 	config.writeRepo()
 	config.copyStatic("static")
+
+	styles := style(*theme)
+	fmt.Println(styles)
+	err = os.WriteFile(filepath.Join(out, "vars.css"), []byte(styles), 0644)
+	if err != nil {
+		panic(err)
+	}
 
 	fp := filepath.Join(out, "syntax.css")
 	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)

@@ -28,7 +28,7 @@ static: build clean
 		--desc "static site generator for git" \
 		--clone-url "https://github.com/picosh/pgit.git" \
 		--home-url "https://git.erock.io" \
-		--theme "algol" \
+		--theme "dracula" \
 		--revs main
 .PHONY:
 

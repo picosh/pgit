@@ -1,13 +1,17 @@
-.border-b {
-  border-bottom: 1px solid var(--grey);
-}
-
-.border-b:last-child {
-  border-bottom: 0;
+pre {
+  border: 1px solid var(--border);
 }
 
 body {
   max-width: 900px;
+}
+
+.border-b {
+  border-bottom: 1px solid var(--border);
+}
+
+.border-b:last-child {
+  border-bottom: 0;
 }
 
 .box {
@@ -24,7 +28,7 @@ body {
 }
 
 .tree-row:hover {
-  background-color: var(--grey);
+  background-color: var(--border);
 }
 
 @media only screen and (max-width: 900px) {
