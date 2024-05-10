@@ -54,8 +54,7 @@ pre {
 code,
 kbd,
 samp {
-  background-color: var(--code);
-  border: 1px solid var(--code-border);
+  border: 2px solid var(--code);
 }
 
 pre > code {
@@ -65,8 +64,9 @@ pre > code {
 }
 
 code {
+  font-size: 90%;
   border-radius: 0.3rem;
-  padding: 0.15rem 0.2rem 0.05rem;
+  padding: 0.15rem 0.3rem 0.05rem;
 }
 
 pre {
@@ -96,18 +96,6 @@ h3 {
   font-size: inherit;
 }
 
-h1 > code {
-  font-size: inherit;
-}
-
-h2 > code {
-  font-size: inherit;
-}
-
-h3 > code {
-  font-size: inherit;
-}
-
 path {
   fill: var(--text-color);
   stroke: var(--text-color);
@@ -118,18 +106,19 @@ hr {
   border: 0;
   margin: 0;
   height: 2px;
-  background: var(--border);
+  background: var(--grey);
   margin: 1rem auto;
   text-align: center;
 }
 
 a {
-  text-decoration: underline;
+  text-decoration: none;
   color: var(--link-color);
 }
 
 a:hover,
 a:visited:hover {
+  text-decoration: underline;
   color: var(--hover);
 }
 
@@ -380,6 +369,10 @@ figure {
   margin-left: 0.5rem;
 }
 
+.pt-0 {
+  padding-top: 0;
+}
+
 .my {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
@@ -464,6 +457,12 @@ figure {
   gap: 0.5rem;
 }
 
+.group-2 {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .group-h {
   display: flex;
   gap: 0.5rem;
@@ -486,6 +485,10 @@ figure {
   justify-content: end;
 }
 
+.font-grey-light {
+  color: var(--grey-light);
+}
+
 .hidden {
   display: none;
 }
@@ -494,10 +497,8 @@ figure {
   text-align: right;
 }
 
-/* ==== HELPERS ==== */
-
 .box {
-  border: 2px solid var(--border);
+  border: 2px solid var(--grey-light);
   padding: 0.5rem 0.75rem;
 }
 
@@ -508,5 +509,9 @@ figure {
 
   header {
     margin: 0;
+  }
+
+  .flex-collapse {
+    flex-direction: column;
   }
 }
