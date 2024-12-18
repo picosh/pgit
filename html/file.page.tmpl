@@ -18,20 +18,20 @@
       <div class="flex-1">
         <a href="{{.Item.CommitURL}}">{{.Item.Summary}}</a>
       </div>
-      <div>
+      <div class="mono">
         <a href="{{.Item.CommitURL}}">{{.Item.CommitID}}</a>
       </div>
     </div>
 
-    <div class="flex items-center gap-xs">
+    <div class="flex items-center">
       <span>{{.Item.Author.Name}}</span>
-      <span>&centerdot;</span>
+      <span>&nbsp;&centerdot;&nbsp;</span>
       <span>{{.Item.When}}</span>
     </div>
   </div>
   {{end}}
 
-  <h2 class="text-lg">{{.Item.Name}}</h2>
+  <h2 class="text-lg text-transform-none">{{.Item.Name}}</h2>
 
   {{.Contents}}
 {{end }}

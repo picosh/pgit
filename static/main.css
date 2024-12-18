@@ -1,5 +1,6 @@
 pre {
   border: 1px solid var(--border);
+  padding: var(--grid-height);
 }
 
 body {
@@ -16,6 +17,8 @@ body {
 
 .box {
   margin: 1rem 0;
+  padding: var(--grid-height);
+  border: 1px solid var(--border);
 }
 
 .tree-size {
@@ -27,8 +30,11 @@ body {
   text-wrap: wrap;
 }
 
-.tree-row:hover {
-  background-color: var(--border);
+.diff-file {
+  position: sticky;
+  top: 0;
+  left: 0;
+  background-color: var(--bg-color);
 }
 
 @media only screen and (max-width: 900px) {

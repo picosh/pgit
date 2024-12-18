@@ -39,7 +39,7 @@
   </div>
 
   {{range .Diff.Files}}
-    <div id="diff-{{.Name}}" class="flex justify-between mono">
+    <div id="diff-{{.Name}}" class="flex justify-between mono py diff-file">
       <div>
         <span>{{.FileType}} {{if eq .FileType "R"}}{{.OldName}} => {{end}}</span>
         <a href="#diff-{{.Name}}">{{.Name}}</a>
