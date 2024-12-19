@@ -2,7 +2,7 @@
 
 {{define "title"}}{{.Repo.RepoName}}{{if .Repo.Desc}}- {{.Repo.Desc}}{{end}}{{end}}
 {{define "meta"}}
-<link rel="stylesheet" href="/syntax.css" />
+<link rel="stylesheet" href="{{.Repo.RootRelative}}syntax.css" />
 {{end}}
 
 {{define "content"}}

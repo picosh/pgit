@@ -1,7 +1,7 @@
 {{template "base" .}}
 {{define "title"}}{{.Commit.Summary}} - {{.Repo.RepoName}}@{{.CommitID}}{{end}}
 {{define "meta"}}
-<link rel="stylesheet" href="/syntax.css" />
+<link rel="stylesheet" href="{{.Repo.RootRelative}}syntax.css" />
 {{end}}
 
 {{define "content"}}

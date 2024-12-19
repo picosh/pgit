@@ -10,9 +10,9 @@
 
     {{template "meta" .}}
 
-    <link rel="stylesheet" href="/vars.css" />
-    <link rel="stylesheet" href="/smol.css" />
-    <link rel="stylesheet" href="/main.css" />
+    <link rel="stylesheet" href="{{.Repo.RootRelative}}vars.css" />
+    <link rel="stylesheet" href="{{.Repo.RootRelative}}smol.css" />
+    <link rel="stylesheet" href="{{.Repo.RootRelative}}main.css" />
   </head>
   <body>
     <header>{{template "header" .}}</header>
