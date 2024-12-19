@@ -8,7 +8,7 @@
     <span>{{.Repo.RepoName}}</span>
   </h1>
 
-  <nav class="text-lg">
+  <nav>
     <a href="{{.SiteURLs.SummaryURL}}">summary</a> |
     <a href="{{.SiteURLs.RefsURL}}">refs</a> |
     <span class="font-bold">{{.RevData.Name}}</span> |
@@ -17,7 +17,7 @@
   </nav>
 
   <div>
-    <div class="text-lg">{{.Repo.Desc}}</div>
+    <div>{{.Repo.Desc}}</div>
     <pre class="m-0">git clone {{.SiteURLs.CloneURL}}</pre>
   </div>
 </div>
