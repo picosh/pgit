@@ -43,3 +43,30 @@ site colors.
 
 This project was heavily inspired by
 [stagit](https://codemadness.org/stagit.html)
+
+## with multiple repos
+
+`--root-relative` sets the prefix for all links (default: `/`). This makes it so
+you can run multiple repos and have them all live inside the same static site.
+
+```bash
+pgit \
+  --out ./public/pico \
+  --label pico \
+  --home-url "https://git.erock.io" \
+  --revs main \
+  --repo ~/pico \
+  --root-relative "/pico/"
+
+pgit \
+  --out ./public/starfx \
+  --label starfx \
+  --home-url "https://git.erock.io" \
+  --revs main \
+  --repo ~/starfx \
+  --root-relative "/starfx"
+
+echo '<html><body><a href="/pico">pico</a><a href="/starfx">starfx</a></body></html>' > ./public/index.html
+
+rsync -rv ./public/ pgs.sh:/git
+```

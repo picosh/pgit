@@ -18,7 +18,7 @@
 
   <div>
     <div>{{.Repo.Desc}}</div>
-    <pre class="m-0">git clone {{.SiteURLs.CloneURL}}</pre>
+    {{if .SiteURLs.CloneURL}}<pre class="m-0">git clone {{.SiteURLs.CloneURL}}</pre>{{end}}
   </div>
 </div>
 {{end}}
