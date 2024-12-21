@@ -5,7 +5,7 @@
 {{end}}
 
 {{define "content"}}
-  <div class="text-md">
+  <div class="text-md text-transform-none">
     {{range .Item.Crumbs}}
       <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}/{{end}}
     {{end}}
