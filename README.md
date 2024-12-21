@@ -7,7 +7,7 @@ git repository and the provided revisions.
 
 It will only generate a commit log and files for the provided revisions.
 
-# usage
+## usage
 
 ```bash
 make build
@@ -39,11 +39,6 @@ we generate a `vars.css` file that you are welcome to overwrite before
 deploying, it will _not_ change the syntax highlighting colors, only the main
 site colors.
 
-# inspiration
-
-This project was heavily inspired by
-[stagit](https://codemadness.org/stagit.html)
-
 ## with multiple repos
 
 `--root-relative` sets the prefix for all links (default: `/`). This makes it so
@@ -68,3 +63,8 @@ echo '<html><body><a href="/pico">pico</a><a href="/starfx">starfx</a></body></h
 
 rsync -rv ./public/ pgs.sh:/git
 ```
+
+## inspiration
+
+This project was heavily inspired by
+[stagit](https://codemadness.org/stagit.html)
