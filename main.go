@@ -665,6 +665,7 @@ func (c *Config) writeRepo() *BranchOutput {
 		return urlI > urlJ
 	})
 
+	var wg sync.WaitGroup
 	for _, revData := range revs {
 		c.Logger.Info("writing revision", "revision", revData.Name())
 		data := &PageData{
@@ -674,7 +675,9 @@ func (c *Config) writeRepo() *BranchOutput {
 		}
 
 		if claimed {
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				c.writeRevision(repo, data, refInfoList)
 			}()
 		} else {
@@ -683,6 +686,7 @@ func (c *Config) writeRepo() *BranchOutput {
 			claimed = true
 		}
 	}
+	wg.Wait()
 
 	// use the first revision in our list to generate
 	// the root summary, logs, and tree the user can click
