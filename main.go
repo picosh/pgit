@@ -626,7 +626,6 @@ func (c *Config) writeRepo() *BranchOutput {
 
 	refInfoMap := map[string]*RefInfo{}
 	mainOutput := &BranchOutput{}
-	claimed := false
 	for _, revData := range revs {
 		refInfoMap[revData.Name()] = &RefInfo{
 			ID:      revData.ID(),
@@ -666,7 +665,7 @@ func (c *Config) writeRepo() *BranchOutput {
 	})
 
 	var wg sync.WaitGroup
-	for _, revData := range revs {
+	for i, revData := range revs {
 		c.Logger.Info("writing revision", "revision", revData.Name())
 		data := &PageData{
 			Repo:     c,
@@ -674,16 +673,15 @@ func (c *Config) writeRepo() *BranchOutput {
 			SiteURLs: c.getURLs(),
 		}
 
-		if claimed {
+		if i == 0 {
+			branchOutput := c.writeRevision(repo, data, refInfoList)
+			mainOutput = branchOutput
+		} else {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				c.writeRevision(repo, data, refInfoList)
 			}()
-		} else {
-			branchOutput := c.writeRevision(repo, data, refInfoList)
-			mainOutput = branchOutput
-			claimed = true
 		}
 	}
 	wg.Wait()
