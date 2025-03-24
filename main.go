@@ -75,7 +75,6 @@ type RevInfo interface {
 	Name() string
 }
 
-// revision data
 type RevData struct {
 	id     string
 	name   string
@@ -239,7 +238,7 @@ func diffFileType(_type git.DiffFileType) string {
 	return ""
 }
 
-// converts contents of files in git tree to pretty formatted code
+// converts contents of files in git tree to pretty formatted code.
 func (c *Config) parseText(filename string, text string) (string, error) {
 	lexer := lexers.Match(filename)
 	if lexer == nil {
@@ -344,7 +343,8 @@ func (c *Config) copyStatic(dir string) error {
 		bail(err)
 		fp := filepath.Join(c.Outdir, e.Name())
 		c.Logger.Info("writing", "filepath", fp)
-		os.WriteFile(fp, w, 0644)
+		err = os.WriteFile(fp, w, 0644)
+		bail(err)
 	}
 
 	return nil
@@ -522,8 +522,8 @@ func (c *Config) getRefsURL() template.URL {
 }
 
 // controls the url for trees and logs
-// /logs/getRevIDForURL()/index.html
-// /tree/getRevIDForURL()/item/file.x.html
+// - /logs/getRevIDForURL()/index.html
+// - /tree/getRevIDForURL()/item/file.x.html.
 func getRevIDForURL(info RevInfo) string {
 	return info.Name()
 }
@@ -625,7 +625,6 @@ func (c *Config) writeRepo() *BranchOutput {
 	}
 
 	refInfoMap := map[string]*RefInfo{}
-	mainOutput := &BranchOutput{}
 	for _, revData := range revs {
 		refInfoMap[revData.Name()] = &RefInfo{
 			ID:      revData.ID(),
@@ -664,6 +663,9 @@ func (c *Config) writeRepo() *BranchOutput {
 		return urlI > urlJ
 	})
 
+	// we assume the first revision in the list is the "main" revision which mostly
+	// means that's the README we use for the default summary page.
+	mainOutput := &BranchOutput{}
 	var wg sync.WaitGroup
 	for i, revData := range revs {
 		c.Logger.Info("writing revision", "revision", revData.Name())
@@ -758,7 +760,7 @@ func (tw *TreeWalker) calcBreadcrumbs(curpath string) []*Breadcrumb {
 	return crumbs
 }
 
-func FilenameToDevIcon(filename string) string {
+func filenameToDevIcon(filename string) string {
 	ext := filepath.Ext(filename)
 	extMappr := map[string]string{
 		".html": "html5",
@@ -831,7 +833,7 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 			"index.html",
 		)
 	} else if typ == git.ObjectBlob {
-		item.Icon = FilenameToDevIcon(item.Name)
+		item.Icon = filenameToDevIcon(item.Name)
 	}
 	item.URL = fpath
 
@@ -1056,8 +1058,8 @@ func main() {
 	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD)")
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
-	var cloneFlag = flag.String("clone-url", "", "git clone URL")
-	var homeFlag = flag.String("home-url", "", "URL for breadcumbs to get to list of repositories")
+	var cloneFlag = flag.String("clone-url", "", "git clone URL for upstream")
+	var homeFlag = flag.String("home-url", "", "URL for breadcumbs to go to root page, hidden if empty")
 	var descFlag = flag.String("desc", "", "description for repo")
 	var rootRelativeFlag = flag.String("root-relative", "/", "html root relative")
 	var maxCommitsFlag = flag.Int("max-commits", 0, "maximum number of commits to generate")
@@ -1113,7 +1115,8 @@ func main() {
 	}
 
 	config.writeRepo()
-	config.copyStatic("static")
+	err = config.copyStatic("static")
+	bail(err)
 
 	styles := style(*theme)
 	fmt.Println(styles)
