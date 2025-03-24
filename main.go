@@ -626,7 +626,6 @@ func (c *Config) writeRepo() *BranchOutput {
 
 	refInfoMap := map[string]*RefInfo{}
 	mainOutput := &BranchOutput{}
-	claimed := false
 	for _, revData := range revs {
 		refInfoMap[revData.Name()] = &RefInfo{
 			ID:      revData.ID(),
@@ -665,7 +664,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		return urlI > urlJ
 	})
 
-	for _, revData := range revs {
+	var wg sync.WaitGroup
+	for i, revData := range revs {
 		c.Logger.Info("writing revision", "revision", revData.Name())
 		data := &PageData{
 			Repo:     c,
@@ -673,16 +673,18 @@ func (c *Config) writeRepo() *BranchOutput {
 			SiteURLs: c.getURLs(),
 		}
 
-		if claimed {
-			go func() {
-				c.writeRevision(repo, data, refInfoList)
-			}()
-		} else {
+		if i == 0 {
 			branchOutput := c.writeRevision(repo, data, refInfoList)
 			mainOutput = branchOutput
-			claimed = true
+		} else {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.writeRevision(repo, data, refInfoList)
+			}()
 		}
 	}
+	wg.Wait()
 
 	// use the first revision in our list to generate
 	// the root summary, logs, and tree the user can click
