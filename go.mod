@@ -1,6 +1,6 @@
 module github.com/picosh/pgit
 
-go 1.18
+go 1.24
 
 require (
 	github.com/alecthomas/chroma/v2 v2.13.0
