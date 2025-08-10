@@ -215,7 +215,7 @@ type WriteData struct {
 	Template string
 	Filename string
 	Subdir   string
-	Data     interface{}
+	Data     any
 }
 
 func bail(err error) {
@@ -225,17 +225,18 @@ func bail(err error) {
 }
 
 func diffFileType(_type git.DiffFileType) string {
-	if _type == git.DiffFileAdd {
+	switch _type {
+	case git.DiffFileAdd:
 		return "A"
-	} else if _type == git.DiffFileChange {
+	case git.DiffFileChange:
 		return "M"
-	} else if _type == git.DiffFileDelete {
+	case git.DiffFileDelete:
 		return "D"
-	} else if _type == git.DiffFileRename {
+	case git.DiffFileRename:
 		return "R"
+	default:
+		return ""
 	}
-
-	return ""
 }
 
 // converts contents of files in git tree to pretty formatted code.
@@ -822,7 +823,8 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 	}
 
 	fpath := tw.Config.getFileURL(tw.PageData.RevData, fmt.Sprintf("%s.html", fname))
-	if typ == git.ObjectTree {
+	switch typ {
+	case git.ObjectTree:
 		item.IsDir = true
 		fpath = tw.Config.compileURL(
 			filepath.Join(
@@ -832,7 +834,7 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 			),
 			"index.html",
 		)
-	} else if typ == git.ObjectBlob {
+	case git.ObjectBlob:
 		item.Icon = filenameToDevIcon(item.Name)
 	}
 	item.URL = fpath
@@ -850,13 +852,14 @@ func (tw *TreeWalker) walk(tree *git.Tree, curpath string) {
 		typ := entry.Type()
 		item := tw.NewTreeItem(entry, curpath, crumbs)
 
-		if typ == git.ObjectTree {
+		switch typ {
+		case git.ObjectTree:
 			item.IsDir = true
 			re, _ := tree.Subtree(entry.Name())
 			tw.walk(re, item.Path)
 			treeEntries = append(treeEntries, item)
 			tw.treeItem <- item
-		} else if typ == git.ObjectBlob {
+		case git.ObjectBlob:
 			treeEntries = append(treeEntries, item)
 			tw.treeItem <- item
 		}
@@ -1119,7 +1122,6 @@ func main() {
 	bail(err)
 
 	styles := style(*theme)
-	fmt.Println(styles)
 	err = os.WriteFile(filepath.Join(out, "vars.css"), []byte(styles), 0644)
 	if err != nil {
 		panic(err)
