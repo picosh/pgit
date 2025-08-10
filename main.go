@@ -25,8 +25,11 @@ import (
 	git "github.com/gogs/git-module"
 )
 
-//go:embed html/*.tmpl static/*
-var efs embed.FS
+//go:embed html/*.tmpl
+var embedFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
 
 type Config struct {
 	// required params
@@ -308,7 +311,7 @@ func readmeFile(repo *Config) string {
 
 func (c *Config) writeHtml(writeData *WriteData) {
 	ts, err := template.ParseFS(
-		efs,
+		embedFS,
 		writeData.Template,
 		"html/header.partial.tmpl",
 		"html/footer.partial.tmpl",
@@ -331,7 +334,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 }
 
 func (c *Config) copyStatic(dir string) error {
-	entries, err := efs.ReadDir(dir)
+	entries, err := staticFS.ReadDir(dir)
 	bail(err)
 
 	for _, e := range entries {
@@ -340,7 +343,7 @@ func (c *Config) copyStatic(dir string) error {
 			continue
 		}
 
-		w, err := efs.ReadFile(infp)
+		w, err := staticFS.ReadFile(infp)
 		bail(err)
 		fp := filepath.Join(c.Outdir, e.Name())
 		c.Logger.Info("writing", "filepath", fp)
@@ -421,7 +424,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 
 	nameLower := strings.ToLower(treeItem.Entry.Name())
 	summary := readmeFile(pageData.Repo)
-	if nameLower == summary {
+	if d == "." && nameLower == summary {
 		readme = contents
 	}
 
@@ -454,13 +457,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 		c.Mutex.Unlock()
 	}
 
-	diff, err := repo.Diff(
-		commitID,
-		0,
-		0,
-		0,
-		git.DiffOptions{},
-	)
+	diff, err := repo.Diff(commitID, 0, 0, 0, git.DiffOptions{})
 	bail(err)
 
 	rnd := &DiffRender{
@@ -1022,7 +1019,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	wg.Wait()
 
 	c.Logger.Info(
-		"compilation complete branch",
+		"compilation complete",
 		"repoName", c.RepoName,
 		"revision", pageData.RevData.Name(),
 	)
