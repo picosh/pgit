@@ -4,7 +4,7 @@
 {{define "meta"}}{{end}}
 
 {{define "content"}}
-  <div class="group">
+  <div class="group-2">
     <div><span class="font-bold">({{.NumCommits}})</span> commits</div>
     {{range .Logs}}
       <div>
@@ -29,7 +29,7 @@
         </div>
 
         <div>
-          <pre class="m-0">{{.Message}}</pre>
+          <pre class="m-0 white-space-bs">{{.Message}}</pre>
         </div>
       </div>
     {{end}}

@@ -31,10 +31,20 @@ body {
 }
 
 .diff-file {
+  align-items: center;
+  height: 62px;
   position: sticky;
   top: 0;
   left: 0;
   background-color: var(--bg-color);
+}
+
+.white-space-bs {
+  white-space: break-spaces;
+}
+
+.mb-0 {
+  margin-bottom: 0;
 }
 
 @media only screen and (max-width: 900px) {

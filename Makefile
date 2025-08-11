@@ -41,5 +41,5 @@ static: build clean
 .PHONY:
 
 dev: static
-	rsync -rv ./public/* pgs.sh:/git-pgit-local
+	rsync -rv --delete ./public/ pgs.sh:/git-pgit-local/
 .PHONY: dev
