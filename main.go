@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"embed"
-	_ "embed"
 	"flag"
 	"fmt"
 	"html/template"
@@ -184,23 +183,27 @@ type PageData struct {
 type SummaryPageData struct {
 	*PageData
 	Readme template.HTML
+	IsMarkdown bool
 }
 
 type TreePageData struct {
 	*PageData
 	Tree *TreeRoot
+	IsMarkdown bool
 }
 
 type LogPageData struct {
 	*PageData
 	NumCommits int
 	Logs       []*CommitData
+	IsMarkdown bool
 }
 
 type FilePageData struct {
 	*PageData
 	Contents template.HTML
 	Item     *TreeItem
+	IsMarkdown bool
 }
 
 type CommitPageData struct {
@@ -212,11 +215,13 @@ type CommitPageData struct {
 	Parent    string
 	ParentURL template.URL
 	CommitURL template.URL
+	IsMarkdown bool
 }
 
 type RefPageData struct {
 	*PageData
 	Refs []*RefInfo
+	IsMarkdown bool
 }
 
 type WriteData struct {
@@ -378,6 +383,7 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 		Data: &SummaryPageData{
 			PageData: data,
 			Readme:   readme,
+			IsMarkdown: true,
 		},
 	})
 }
@@ -391,6 +397,7 @@ func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
 		Data: &TreePageData{
 			PageData: data,
 			Tree:     tree,
+			IsMarkdown: false,
 		},
 	})
 }
@@ -405,6 +412,7 @@ func (c *Config) writeLog(data *PageData, logs []*CommitData) {
 			PageData:   data,
 			NumCommits: len(logs),
 			Logs:       logs,
+			IsMarkdown: false,
 		},
 	})
 }
@@ -417,6 +425,7 @@ func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
 		Data: &RefPageData{
 			PageData: data,
 			Refs:     refs,
+			IsMarkdown: false,
 		},
 	})
 }
@@ -444,6 +453,9 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		readme = contents
 	}
 
+	// Check if the file is a markdown file
+	isMarkdown := strings.HasSuffix(strings.ToLower(treeItem.Entry.Name()), ".md") || strings.HasSuffix(strings.ToLower(treeItem.Entry.Name()), ".markdown")
+
 	c.writeHtml(&WriteData{
 		Filename: fmt.Sprintf("%s.html", treeItem.Entry.Name()),
 		Template: "html/file.page.tmpl",
@@ -451,6 +463,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 			PageData: pageData,
 			Contents: template.HTML(contents),
 			Item:     treeItem,
+			IsMarkdown: isMarkdown,
 		},
 		Subdir: getFileDir(pageData.RevData, d),
 	})
@@ -515,6 +528,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 		Parent:    getShortID(commit.ParentID),
 		CommitURL: c.getCommitURL(commitID),
 		ParentURL: c.getCommitURL(commit.ParentID),
+		IsMarkdown: false,
 	}
 
 	c.writeHtml(&WriteData{

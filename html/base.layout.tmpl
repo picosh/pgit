@@ -17,7 +17,7 @@
   <body>
     <header class="box">{{template "header" .}}</header>
     <hr class="my" />
-    <main>{{template "content" .}}</main>
+    <main{{if .IsMarkdown}} class="md"{{end}}>{{template "content" .}}</main>
     <hr class="my" />
     <footer>{{template "footer" .}}</footer>
   </body>
