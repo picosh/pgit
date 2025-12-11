@@ -23,6 +23,9 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/dustin/go-humanize"
 	git "github.com/gogs/git-module"
+	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	meta "github.com/yuin/goldmark-meta"
 )
 
 //go:embed html/*.tmpl
@@ -71,6 +74,8 @@ type Config struct {
 	// chroma style
 	Theme     *chroma.Style
 	Formatter *formatterHtml.Formatter
+	// goldmark markdown renderer
+	MarkdownRenderer goldmark.Markdown
 }
 
 type RevInfo interface {
@@ -244,6 +249,17 @@ func diffFileType(_type git.DiffFileType) string {
 
 // converts contents of files in git tree to pretty formatted code.
 func (c *Config) parseText(filename string, text string) (string, error) {
+	// Check if it's a markdown file
+	if strings.HasSuffix(strings.ToLower(filename), ".md") || strings.HasSuffix(strings.ToLower(filename), ".markdown") {
+		// Use goldmark to render markdown to HTML
+		var buf bytes.Buffer
+		err := c.MarkdownRenderer.Convert([]byte(text), &buf)
+		if err != nil {
+			return text, err
+		}
+		return buf.String(), nil
+	}
+	
 	lexer := lexers.Match(filename)
 	if lexer == nil {
 		lexer = lexers.Analyse(text)
@@ -1092,6 +1108,21 @@ func main() {
 		formatterHtml.WithClasses(true),
 	)
 
+	// Initialize goldmark markdown renderer
+	markdownRenderer := goldmark.New(
+		goldmark.WithExtensions(
+			meta.Meta,
+			highlighting.NewHighlighting(
+				highlighting.WithStyle(theme.Name),
+				highlighting.WithFormatOptions(
+					formatterHtml.WithLineNumbers(true),
+					formatterHtml.WithLinkableLineNumbers(true, ""),
+					formatterHtml.WithClasses(true),
+				),
+			),
+		),
+	)
+
 	config := &Config{
 		Outdir:             out,
 		RepoPath:           repoPath,
@@ -1107,6 +1138,7 @@ func main() {
 		HideTreeLastCommit: *hideTreeLastCommitFlag,
 		RootRelative:       *rootRelativeFlag,
 		Formatter:          formatter,
+		MarkdownRenderer:   markdownRenderer,
 	}
 	config.Logger.Info("config", "config", config)
 
