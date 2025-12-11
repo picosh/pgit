@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -253,12 +254,61 @@ func diffFileType(_type git.DiffFileType) string {
 }
 
 // converts contents of files in git tree to pretty formatted code.
-func (c *Config) parseText(filename string, text string) (string, error) {
+func (c *Config) parseText(filename string, text string, revData *RevData, currentPath string) (string, error) {
 	// Check if it's a markdown file
 	if strings.HasSuffix(strings.ToLower(filename), ".md") || strings.HasSuffix(strings.ToLower(filename), ".markdown") {
+		// Use regex to find and replace markdown links
+		// This is a simpler approach that works with goldmark v1.7.8
+		// Find all [text](link) patterns where link ends with .md or .markdown
+		result := text
+
+		// Regex pattern for markdown links: [text](link)
+		linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+
+		result = linkRegex.ReplaceAllStringFunc(result, func(match string) string {
+			// Extract the link destination
+			parts := linkRegex.FindStringSubmatch(match)
+			if len(parts) != 3 {
+				return match
+			}
+			text := parts[1]
+			dest := parts[2]
+
+			// Skip external links
+			if strings.HasPrefix(dest, "http://") || strings.HasPrefix(dest, "https://") || strings.HasPrefix(dest, "mailto:") {
+				return match
+			}
+			// Skip anchor links
+			if strings.HasPrefix(dest, "#") {
+				return match
+			}
+			// Check if it's a markdown file link
+			if strings.HasSuffix(strings.ToLower(dest), ".md") || strings.HasSuffix(strings.ToLower(dest), ".markdown") {
+				var htmlDest string
+				// Make it absolute path relative to the repo root
+				if !strings.HasPrefix(dest, "/") {
+					// Resolve relative path based on current file
+					currentDir := filepath.Dir(currentPath)
+					htmlDest = filepath.Join(currentDir, dest)
+					// Clean up path (remove ../ and ./)
+					htmlDest = filepath.Clean(htmlDest)
+				} else {
+					htmlDest = dest
+				}
+				// Remove leading / if present
+				htmlDest = strings.TrimPrefix(htmlDest, "/")
+				// Construct the full HTML path in /tree/{branch}/item/{path}/{file}.md.html format
+				fullPath := fmt.Sprintf("/tree/%s/item/%s.html", revData.Name(), htmlDest)
+				// Return the modified link
+				return fmt.Sprintf("[%s](%s)", text, fullPath)
+			}
+			// Return original match if no modification needed
+			return match
+		})
+
 		// Use goldmark to render markdown to HTML
 		var buf bytes.Buffer
-		err := c.MarkdownRenderer.Convert([]byte(text), &buf)
+		err := c.MarkdownRenderer.Convert([]byte(result), &buf)
 		if err != nil {
 			return text, err
 		}
@@ -441,7 +491,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 	contents := "binary file, cannot display"
 	if treeItem.IsTextFile {
 		treeItem.NumLines = len(strings.Split(str, "\n"))
-		contents, err = c.parseText(treeItem.Entry.Name(), string(b))
+		contents, err = c.parseText(treeItem.Entry.Name(), string(b), pageData.RevData, treeItem.Path)
 		bail(err)
 	}
 
@@ -512,7 +562,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 			}
 		}
 		// set filename to something our `ParseText` recognizes (e.g. `.diff`)
-		finContent, err := c.parseText("commit.diff", content)
+		finContent, err := c.parseText("commit.diff", content, nil, "")
 		bail(err)
 
 		fl.Content = template.HTML(finContent)
