@@ -182,13 +182,13 @@ type PageData struct {
 
 type SummaryPageData struct {
 	*PageData
-	Readme template.HTML
+	Readme     template.HTML
 	IsMarkdown bool
 }
 
 type TreePageData struct {
 	*PageData
-	Tree *TreeRoot
+	Tree       *TreeRoot
 	IsMarkdown bool
 }
 
@@ -201,26 +201,26 @@ type LogPageData struct {
 
 type FilePageData struct {
 	*PageData
-	Contents template.HTML
-	Item     *TreeItem
+	Contents   template.HTML
+	Item       *TreeItem
 	IsMarkdown bool
 }
 
 type CommitPageData struct {
 	*PageData
-	CommitMsg template.HTML
-	CommitID  string
-	Commit    *CommitData
-	Diff      *DiffRender
-	Parent    string
-	ParentURL template.URL
-	CommitURL template.URL
+	CommitMsg  template.HTML
+	CommitID   string
+	Commit     *CommitData
+	Diff       *DiffRender
+	Parent     string
+	ParentURL  template.URL
+	CommitURL  template.URL
 	IsMarkdown bool
 }
 
 type RefPageData struct {
 	*PageData
-	Refs []*RefInfo
+	Refs       []*RefInfo
 	IsMarkdown bool
 }
 
@@ -264,7 +264,7 @@ func (c *Config) parseText(filename string, text string) (string, error) {
 		}
 		return buf.String(), nil
 	}
-	
+
 	lexer := lexers.Match(filename)
 	if lexer == nil {
 		lexer = lexers.Analyse(text)
@@ -381,8 +381,8 @@ func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
 		Filename: "index.html",
 		Template: "html/summary.page.tmpl",
 		Data: &SummaryPageData{
-			PageData: data,
-			Readme:   readme,
+			PageData:   data,
+			Readme:     readme,
 			IsMarkdown: true,
 		},
 	})
@@ -395,8 +395,8 @@ func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
 		Subdir:   tree.Path,
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
-			PageData: data,
-			Tree:     tree,
+			PageData:   data,
+			Tree:       tree,
 			IsMarkdown: false,
 		},
 	})
@@ -423,8 +423,8 @@ func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
 		Filename: "refs.html",
 		Template: "html/refs.page.tmpl",
 		Data: &RefPageData{
-			PageData: data,
-			Refs:     refs,
+			PageData:   data,
+			Refs:       refs,
 			IsMarkdown: false,
 		},
 	})
@@ -460,9 +460,9 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Filename: fmt.Sprintf("%s.html", treeItem.Entry.Name()),
 		Template: "html/file.page.tmpl",
 		Data: &FilePageData{
-			PageData: pageData,
-			Contents: template.HTML(contents),
-			Item:     treeItem,
+			PageData:   pageData,
+			Contents:   template.HTML(contents),
+			Item:       treeItem,
 			IsMarkdown: isMarkdown,
 		},
 		Subdir: getFileDir(pageData.RevData, d),
@@ -521,13 +521,13 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 	rnd.Files = fls
 
 	commitData := &CommitPageData{
-		PageData:  pageData,
-		Commit:    commit,
-		CommitID:  getShortID(commitID),
-		Diff:      rnd,
-		Parent:    getShortID(commit.ParentID),
-		CommitURL: c.getCommitURL(commitID),
-		ParentURL: c.getCommitURL(commit.ParentID),
+		PageData:   pageData,
+		Commit:     commit,
+		CommitID:   getShortID(commitID),
+		Diff:       rnd,
+		Parent:     getShortID(commit.ParentID),
+		CommitURL:  c.getCommitURL(commitID),
+		ParentURL:  c.getCommitURL(commit.ParentID),
 		IsMarkdown: false,
 	}
 
