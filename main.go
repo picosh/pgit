@@ -795,6 +795,9 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 		Entry:  entry,
 		URL:    tw.Config.getFileURL(tw.PageData.RevData, fname),
 		Crumbs: crumbs,
+		Author: &git.Signature{
+			Name: "unknown",
+		},
 	}
 
 	// `git rev-list` is pretty expensive here, so we have a flag to disable
@@ -808,15 +811,14 @@ func (tw *TreeWalker) NewTreeItem(entry *git.TreeEntry, curpath string, crumbs [
 		})
 		bail(err)
 
-		var lc *git.Commit
 		if len(lastCommits) > 0 {
-			lc = lastCommits[0]
+			lc := lastCommits[0]
+			item.CommitURL = tw.Config.getCommitURL(lc.ID.String())
+			item.CommitID = getShortID(lc.ID.String())
+			item.Summary = lc.Summary()
+			item.When = lc.Author.When.Format(time.DateOnly)
+			item.Author = lc.Author
 		}
-		item.CommitURL = tw.Config.getCommitURL(lc.ID.String())
-		item.CommitID = getShortID(lc.ID.String())
-		item.Summary = lc.Summary()
-		item.When = lc.Author.When.Format(time.DateOnly)
-		item.Author = lc.Author
 	}
 
 	fpath := tw.Config.getFileURL(tw.PageData.RevData, fmt.Sprintf("%s.html", fname))
