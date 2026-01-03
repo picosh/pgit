@@ -22,7 +22,7 @@ fmt:
 .PHONY: fmt
 
 lint:
-	golangci-lint run -E goimports -E godot --timeout 10m
+	golangci-lint run
 .PHONY: lint
 
 test:
