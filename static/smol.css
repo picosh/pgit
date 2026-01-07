@@ -92,7 +92,7 @@ pre {
   border-radius: 1px;
   padding: var(--line-height);
   overflow-x: auto;
-  background-color: var(--pre) !important;
+  background-color: var(--pre);
 }
 
 small {
