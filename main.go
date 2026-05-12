@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"math"
 	"os"
@@ -332,6 +334,47 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 }
 
+// writeHtmlIfChanged renders a template and only writes if content hash differs from existing file
+func (c *Config) writeHtmlIfChanged(writeData *WriteData) {
+	ts, err := template.ParseFS(
+		embedFS,
+		writeData.Template,
+		"html/header.partial.tmpl",
+		"html/footer.partial.tmpl",
+		"html/base.layout.tmpl",
+	)
+	bail(err)
+
+	// render to buffer first
+	var buf bytes.Buffer
+	err = ts.Execute(&buf, writeData.Data)
+	bail(err)
+
+	dir := filepath.Join(c.Outdir, writeData.Subdir)
+	err = os.MkdirAll(dir, os.ModePerm)
+	bail(err)
+
+	fp := filepath.Join(dir, writeData.Filename)
+
+	// compute hash of new content
+	newHash := sha256.Sum256(buf.Bytes())
+
+	// compare with existing file
+	if f, err := os.Open(fp); err == nil {
+		defer f.Close()
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err == nil {
+			if bytes.Equal(h.Sum(nil), newHash[:]) {
+				return // unchanged, skip
+			}
+		}
+	}
+
+	c.Logger.Info("writing", "filepath", fp)
+	err = os.WriteFile(fp, buf.Bytes(), 0644)
+	bail(err)
+}
+
 func (c *Config) copyStatic(dir string) error {
 	entries, err := staticFS.ReadDir(dir)
 	bail(err)
@@ -405,6 +448,7 @@ func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
 }
 
 func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) string {
+	d := filepath.Dir(treeItem.Path)
 	readme := ""
 	b, err := treeItem.Entry.Blob().Bytes()
 	bail(err)
@@ -419,15 +463,13 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		bail(err)
 	}
 
-	d := filepath.Dir(treeItem.Path)
-
 	nameLower := strings.ToLower(treeItem.Entry.Name())
 	summary := readmeFile(pageData.Repo)
 	if d == "." && nameLower == summary {
 		readme = contents
 	}
 
-	c.writeHtml(&WriteData{
+	c.writeHtmlIfChanged(&WriteData{
 		Filename: fmt.Sprintf("%s.html", treeItem.Entry.Name()),
 		Template: "html/file.page.tmpl",
 		Data: &FilePageData{
@@ -450,11 +492,21 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 	if hasCommit {
 		c.Logger.Info("commit file already generated, skipping", "commitID", getShortID(commitID))
 		return
-	} else {
+	}
+
+	// skip if output file already exists from a previous run
+	commitPath := filepath.Join(c.Outdir, "commits", commitID+".html")
+	if _, err := os.Stat(commitPath); err == nil {
+		c.Logger.Info("commit file exists, skipping", "commitID", getShortID(commitID))
 		c.Mutex.Lock()
 		c.Cache[commitID] = true
 		c.Mutex.Unlock()
+		return
 	}
+
+	c.Mutex.Lock()
+	c.Cache[commitID] = true
+	c.Mutex.Unlock()
 
 	diff, err := repo.Diff(commitID, 0, 0, 0, git.DiffOptions{})
 	bail(err)
@@ -1138,3 +1190,5 @@ func main() {
 	url := filepath.Join("/", "index.html")
 	config.Logger.Info("root url", "url", url)
 }
+
+// modified
