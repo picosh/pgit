@@ -9,7 +9,6 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -284,13 +283,72 @@ func isText(s string) bool {
 	return true
 }
 
+// newSet builds a string set from a list of values for O(1) lookup.
+func newSet(vals ...string) map[string]struct{} {
+	m := make(map[string]struct{}, len(vals))
+	for _, v := range vals {
+		m[v] = struct{}{}
+	}
+	return m
+}
+
+// knownBinaryExts lists extensions that are always binary regardless of content.
+var knownBinaryExts = newSet(
+	// images
+	".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg", ".tiff", ".tif", ".psd",
+	// archives / compressed
+	".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar", ".tgz", ".war", ".jar",
+	// documents
+	".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+	// executables / libraries
+	".exe", ".dll", ".so", ".dylib", ".a", ".o",
+	// fonts
+	".ttf", ".otf", ".woff", ".woff2", ".eot",
+	// audio / video
+	".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac", ".ogg", ".webm",
+	// data / serialized
+	".pb", ".msgpack", ".parquet", ".avro",
+	// other
+	".class", ".pyc", ".pyo", ".wasm", ".db", ".sqlite", ".sqlite3",
+)
+
+// knownTextExts lists extensions that are always text regardless of content.
+var knownTextExts = newSet(
+	// code
+	".go", ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".c", ".h", ".cpp", ".hpp", ".rs", ".rb", ".php", ".pl", ".sh", ".bash", ".zsh", ".fish", ".ps1",
+	// markup / data
+	".html", ".htm", ".css", ".scss", ".less", ".xml", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+	// docs
+	".md", ".markdown", ".txt", ".rst", ".tex", ".bib", ".csv", ".tsv",
+	// config / build
+	".Dockerfile", ".dockerignore", ".gitignore", ".gitattributes", ".editorconfig",
+	// other text
+	".diff", ".patch", ".log", ".sql", ".graphql", ".proto", ".makefile", ".cmake",
+)
+
 // isTextFile reports whether the file has a known extension indicating
 // a text file, or if a significant chunk of the specified file looks like
 // correct UTF-8; that is, if it is likely that the file contains human-
-// readable text.
-func isTextFile(text string) bool {
-	num := math.Min(float64(len(text)), 1024)
-	return isText(text[0:int(num)])
+// readable text. Extension check takes priority as a fast path.
+func isTextFile(filename, text string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	// fast path: known binary extension
+	if _, ok := knownBinaryExts[ext]; ok {
+		return false
+	}
+	// fast path: known text extension
+	if _, ok := knownTextExts[ext]; ok {
+		return true
+	}
+	// also check the full filename for extensionless known text files
+	nameLower := strings.ToLower(filename)
+	if _, ok := knownTextExts["."+nameLower]; ok {
+		return true
+	}
+
+	// fallback: inspect bytes
+	return isText(text)
 }
 
 func toPretty(b int64) string {
@@ -454,7 +512,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 	bail(err)
 	str := string(b)
 
-	treeItem.IsTextFile = isTextFile(str)
+	treeItem.IsTextFile = isTextFile(treeItem.Entry.Name(), str)
 
 	contents := "binary file, cannot display"
 	if treeItem.IsTextFile {
