@@ -6,5 +6,8 @@
 {{end}}
 
 {{define "content"}}
-  {{.Readme}}
+    <div>
+        {{if .SiteURLs.CloneURL}}<pre class="mb-0">git clone {{.SiteURLs.CloneURL}}</pre>{{end}}
+    </div>
+    {{.Readme}}
 {{end}}
