@@ -29,16 +29,15 @@ test:
 	go test ./...
 .PHONY: test
 
-static: build clean
-	./pgit \
+static:
+	go run main.go \
 		--out ./public \
 		--label pgit \
-		--desc "static site generator for git" \
 		--clone-url "https://github.com/picosh/pgit.git" \
-		--home-url "https://git.erock.io" \
-		--theme "dracula" \
+		--issues-url "https://github.com/picosh/pgit/issues" \
+		--contrib-url "https://github.com/picosh/pgit/pulls" \
 		--revs main
-.PHONY:
+.PHONY: static
 
 dev: static
 	rsync -rv --delete ./public/ pgs.sh:/git-pgit-local/

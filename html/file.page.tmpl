@@ -5,10 +5,15 @@
 {{end}}
 
 {{define "content"}}
-  <div class="text-md text-transform-none">
+  <div class="box sticky flex items-center gap border-visited" style="margin: 0 !important;">
+    <code>{{.RevData.Name}}</code>
+
     {{range .Item.Crumbs}}
-      <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}/{{end}}
+      <a href="{{.URL}}">{{.Text}}</a>
+      <span>/</span>
     {{end}}
+
+    {{.Item.Name}}
   </div>
 
   {{if .Repo.HideTreeLastCommit}}
@@ -30,8 +35,6 @@
     </div>
   </div>
   {{end}}
-
-  <h2 class="text-lg text-transform-none">{{.Item.Name}}</h2>
 
   {{.Contents}}
 {{end }}

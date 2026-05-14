@@ -4,19 +4,21 @@
 {{define "meta"}}{{end}}
 
 {{define "content"}}
-  <div>
-    <div class="text-md text-transform-none mb">
-      {{range .Tree.Crumbs}}
-        {{if .IsLast}}
-          <span class="font-bold">{{.Text}}</span>
-        {{else}}
-          <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}/{{end}}
-        {{end}}
-      {{end}}
-    </div>
+  <div class="box sticky flex items-center gap border-visited">
+    <code>{{.RevData.Name}}</code>
 
+    {{range .Tree.Crumbs}}
+      {{if .IsLast}}
+        <span class="font-bold">{{.Text}}</span>
+      {{else}}
+        <a href="{{.URL}}">{{.Text}}</a> {{if .IsLast}}{{else}}<span>/</span>{{end}}
+      {{end}}
+    {{end}}
+  </div>
+
+  <div class="box" style="padding: 0 !important;">
     {{range .Tree.Items}}
-      <div class="flex justify-between items-center gap-2 p tree-row border-b">
+      <div class="flex justify-between items-center gap-2 py px tree-row border-b">
         <div class="flex-1 tree-path flex items-center gap">
           {{if .IsDir}}
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" height="16" width="16" viewBox="0 0 512 512">

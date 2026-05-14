@@ -4,15 +4,17 @@
 {{define "meta"}}{{end}}
 
 {{define "content"}}
-  <h2 class="text-lg font-bold">refs</h2>
+  <h2>refs</h2>
 
-  <ul>
-  {{range .Refs}}
-    {{if .URL}}
-      <li><a href="{{.URL}}">{{.Refspec}}</a></li>
-    {{else}}
-      <li>{{.Refspec}}</li>
+  <div class="box" style="padding: 0 !important;">
+    {{range .Refs}}
+      <div class="flex justify-between items-center gap-2 py px tree-row border-b">
+        {{if .URL}}
+          <div><a href="{{.URL}}">{{.Refspec}}</a></div>
+        {{else}}
+          <div>{{.Refspec}}</div>
+        {{end}}
+      </div>
     {{end}}
-  {{end}}
-  </ul>
+  </div>
 {{end}}

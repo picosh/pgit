@@ -40,8 +40,6 @@ type Config struct {
 	// optional params
 	// generate logs anad tree based on the git revisions provided
 	Revs []string
-	// description of repo used in the header of site
-	Desc string
 	// maximum number of commits that we will process in descending order
 	MaxCommits int
 	// name of the readme file
@@ -53,8 +51,11 @@ type Config struct {
 	HideTreeLastCommit bool
 
 	// user-defined urls
-	HomeURL  template.URL
 	CloneURL template.URL
+	// repo bug tracking url
+	IssuesURL template.URL
+	// repo code contribution url (e.g. pull requests, patches)
+	ContribURL template.URL
 
 	// https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references#root_relative
 	RootRelative string
@@ -164,16 +165,18 @@ type BranchOutput struct {
 }
 
 type SiteURLs struct {
-	HomeURL    template.URL
+	IssuesURL  template.URL
+	ContribURL template.URL
 	CloneURL   template.URL
 	SummaryURL template.URL
 	RefsURL    template.URL
 }
 
 type PageData struct {
-	Repo     *Config
-	SiteURLs *SiteURLs
-	RevData  *RevData
+	Repo       *Config
+	SiteURLs   *SiteURLs
+	RevData    *RevData
+	ActivePage string
 }
 
 type SummaryPageData struct {
@@ -454,58 +457,63 @@ func (c *Config) copyStatic(dir string) error {
 	return nil
 }
 
-func (c *Config) writeRootSummary(data *PageData, readme template.HTML) {
+func (c *Config) writeRootSummary(data PageData, readme template.HTML) {
+	data.ActivePage = "readme"
 	c.Logger.Info("writing root html", "repoPath", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Template: "html/summary.page.tmpl",
 		Data: &SummaryPageData{
-			PageData: data,
+			PageData: &data,
 			Readme:   readme,
 		},
 	})
 }
 
-func (c *Config) writeTree(data *PageData, tree *TreeRoot) {
+func (c *Config) writeTree(data PageData, tree *TreeRoot) {
+	data.ActivePage = "code"
 	c.Logger.Info("writing tree", "treePath", tree.Path)
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   tree.Path,
 		Template: "html/tree.page.tmpl",
 		Data: &TreePageData{
-			PageData: data,
+			PageData: &data,
 			Tree:     tree,
 		},
 	})
 }
 
-func (c *Config) writeLog(data *PageData, logs []*CommitData) {
+func (c *Config) writeLog(data PageData, logs []*CommitData) {
+	data.ActivePage = "commits"
 	c.Logger.Info("writing log file", "revision", data.RevData.Name())
 	c.writeHtml(&WriteData{
 		Filename: "index.html",
 		Subdir:   getLogBaseDir(data.RevData),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
-			PageData:   data,
+			PageData:   &data,
 			NumCommits: len(logs),
 			Logs:       logs,
 		},
 	})
 }
 
-func (c *Config) writeRefs(data *PageData, refs []*RefInfo) {
+func (c *Config) writeRefs(data PageData, refs []*RefInfo) {
+	data.ActivePage = "refs"
 	c.Logger.Info("writing refs", "repoPath", c.RepoPath)
 	c.writeHtml(&WriteData{
 		Filename: "refs.html",
 		Template: "html/refs.page.tmpl",
 		Data: &RefPageData{
-			PageData: data,
+			PageData: &data,
 			Refs:     refs,
 		},
 	})
 }
 
-func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) string {
+func (c *Config) writeHTMLTreeFile(pageData PageData, treeItem *TreeItem) string {
+	pageData.ActivePage = "code"
 	d := filepath.Dir(treeItem.Path)
 	readme := ""
 	b, err := treeItem.Entry.Blob().Bytes()
@@ -531,7 +539,7 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 		Filename: fmt.Sprintf("%s.html", treeItem.Entry.Name()),
 		Template: "html/file.page.tmpl",
 		Data: &FilePageData{
-			PageData: pageData,
+			PageData: &pageData,
 			Contents: template.HTML(contents),
 			Item:     treeItem,
 		},
@@ -540,7 +548,8 @@ func (c *Config) writeHTMLTreeFile(pageData *PageData, treeItem *TreeItem) strin
 	return readme
 }
 
-func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *CommitData) {
+func (c *Config) writeLogDiff(repo *git.Repository, pageData PageData, commit *CommitData) {
+	pageData.ActivePage = "commits"
 	commitID := commit.ID.String()
 
 	c.Mutex.RLock()
@@ -601,7 +610,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData *PageData, commit *
 	rnd.Files = fls
 
 	commitData := &CommitPageData{
-		PageData:  pageData,
+		PageData:  &pageData,
 		Commit:    commit,
 		CommitID:  getShortID(commitID),
 		Diff:      rnd,
@@ -680,7 +689,8 @@ func (c *Config) getCommitURL(commitID string) template.URL {
 
 func (c *Config) getURLs() *SiteURLs {
 	return &SiteURLs{
-		HomeURL:    c.HomeURL,
+		IssuesURL:  c.IssuesURL,
+		ContribURL: c.ContribURL,
 		CloneURL:   c.CloneURL,
 		RefsURL:    c.getRefsURL(),
 		SummaryURL: c.getSummaryURL(),
@@ -808,8 +818,8 @@ func (c *Config) writeRepo() *BranchOutput {
 		Repo:     c,
 		SiteURLs: c.getURLs(),
 	}
-	c.writeRefs(data, refInfoList)
-	c.writeRootSummary(data, template.HTML(mainOutput.Readme))
+	c.writeRefs(*data, refInfoList)
+	c.writeRootSummary(*data, template.HTML(mainOutput.Readme))
 	return mainOutput
 }
 
@@ -1066,13 +1076,13 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			})
 		}
 
-		c.writeLog(pageData, logs)
+		c.writeLog(*pageData, logs)
 
 		for _, cm := range logs {
 			wg.Add(1)
 			go func(commit *CommitData) {
 				defer wg.Done()
-				c.writeLogDiff(repo, pageData, commit)
+				c.writeLogDiff(repo, *pageData, commit)
 			}(cm)
 		}
 	}()
@@ -1107,7 +1117,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 					return
 				}
 
-				readmeStr := c.writeHTMLTreeFile(pageData, entry)
+				readmeStr := c.writeHTMLTreeFile(*pageData, entry)
 				if readmeStr != "" {
 					readme = readmeStr
 				}
@@ -1122,7 +1132,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			wg.Add(1)
 			go func(tree *TreeRoot) {
 				defer wg.Done()
-				c.writeTree(pageData, tree)
+				c.writeTree(*pageData, tree)
 			}(t)
 		}
 	}()
@@ -1170,8 +1180,8 @@ func main() {
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
 	var cloneFlag = flag.String("clone-url", "", "git clone URL for upstream")
-	var homeFlag = flag.String("home-url", "", "URL for breadcumbs to go to root page, hidden if empty")
-	var descFlag = flag.String("desc", "", "description for repo")
+	var issuesFlag = flag.String("issues-url", "", "where the repo tracks bug reports")
+	var contribFlag = flag.String("contrib-url", "", "where the repo tracks code contributions")
 	var rootRelativeFlag = flag.String("root-relative", "/", "html root relative")
 	var maxCommitsFlag = flag.Int("max-commits", 0, "maximum number of commits to generate")
 	var hideTreeLastCommitFlag = flag.Bool("hide-tree-last-commit", false, "dont calculate last commit for each file in the tree")
@@ -1212,8 +1222,8 @@ func main() {
 		Theme:              theme,
 		Logger:             logger,
 		CloneURL:           template.URL(*cloneFlag),
-		HomeURL:            template.URL(*homeFlag),
-		Desc:               *descFlag,
+		IssuesURL:          template.URL(*issuesFlag),
+		ContribURL:         template.URL(*contribFlag),
 		MaxCommits:         *maxCommitsFlag,
 		HideTreeLastCommit: *hideTreeLastCommitFlag,
 		RootRelative:       *rootRelativeFlag,

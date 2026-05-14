@@ -1,10 +1,232 @@
-pre {
-  border: 1px solid var(--border);
-  padding: var(--grid-height);
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+::-moz-focus-inner {
+  border-style: none;
+  padding: 0;
+}
+:-moz-focusring {
+  outline: 1px dotted ButtonText;
+}
+:-moz-ui-invalid {
+  box-shadow: none;
+}
+
+:root {
+  --line-height: 1.3rem;
+  --grid-height: 0.65rem;
+}
+
+html {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: 16px;
+  line-height: var(--line-height);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    Arial,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  -webkit-text-size-adjust: 100%;
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
 }
 
 body {
-  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+b,
+strong {
+  font-weight: bold;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: monospace;
+}
+
+code,
+kbd,
+samp {
+  border: 2px solid var(--code);
+}
+
+pre > code {
+  background-color: inherit;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
+code {
+  font-size: 90%;
+  border-radius: 0.3rem;
+  padding: 0.025rem 0.3rem;
+  border: 1px solid var(--border);
+}
+
+pre {
+  border: 1px solid var(--border);
+  padding: var(--grid-height);
+  border-radius: 1px;
+  overflow-x: auto;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-style: normal;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: var(--line-height);
+  margin: 0 0 var(--grid-height) 0;
+  padding: 0;
+  border: 0;
+}
+
+path {
+  fill: var(--text-color);
+}
+
+a {
+  text-decoration: none;
+  color: var(--text-color);
+}
+
+a:hover,
+a:visited:hover {
+  color: var(--visited);
+  text-decoration: underline;
+}
+
+a:visited {
+  color: var(--text-color);
+}
+
+header {
+  margin: 1rem auto;
+}
+
+p {
+  margin-top: var(--line-height);
+  margin-bottom: var(--line-height);
+}
+
+footer {
+  text-align: center;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.mono {
+  font-family: monospace;
+}
+
+.text-sm {
+  font-size: 0.8rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.m-0 {
+  margin: 0;
+}
+
+.mb {
+  margin-bottom: var(--grid-height);
+}
+
+.mb-0 {
+  margin-bottom: 0;
+}
+
+.my {
+  margin-top: var(--grid-height);
+  margin-bottom: var(--grid-height);
+}
+
+.px {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.py {
+  padding-top: var(--grid-height);
+  padding-bottom: var(--grid-height);
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap {
+  gap: var(--grid-height);
+}
+
+.gap-2 {
+  gap: var(--line-height);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--grid-height);
+}
+
+.group-2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--line-height);
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.box {
+  border: 2px solid var(--grey-light);
+  padding: var(--grid-height);
 }
 
 .border-b {
@@ -21,6 +243,10 @@ body {
   border: 1px solid var(--border);
 }
 
+.border-visited {
+  border-color: var(--visited);
+}
+
 .tree-size {
   width: 60px;
   text-align: right;
@@ -30,9 +256,15 @@ body {
   text-wrap: wrap;
 }
 
+.sticky {
+  position: sticky;
+  top: 0;
+  left: 0;
+  background-color: var(--bg-color);
+}
+
 .diff-file {
   align-items: center;
-  height: 62px;
   position: sticky;
   top: 0;
   left: 0;
@@ -43,11 +275,31 @@ body {
   white-space: break-spaces;
 }
 
-.mb-0 {
-  margin-bottom: 0;
+.btn-nav {
+  border-radius: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+}
+
+.btn-nav:hover, .btn-active {
+  border-color: var(--visited);
+  text-decoration: none;
+  color: var(--text-color);
 }
 
 @media only screen and (max-width: 900px) {
+  body {
+    padding: 0 1rem;
+  }
+
+  header {
+    margin: 0;
+  }
+
+  .flex-collapse {
+    flex-direction: column;
+  }
+
   .tree-commit {
     display: none;
   }

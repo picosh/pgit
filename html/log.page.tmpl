@@ -5,27 +5,31 @@
 
 {{define "content"}}
   <div class="group-2">
-    <div><span class="font-bold">({{.NumCommits}})</span> commits</div>
+    <div class="box sticky flex items-center gap border-visited" style="margin: 0 !important;">
+      <code>{{.RevData.Name}}</code>
+      <div><span class="font-bold">{{.NumCommits}}</span> commits</div>
+    </div>
+
     {{range .Logs}}
       <div>
-        <div class="flex justify-between items-center">
+        <div class="flex items-center gap mb text-sm">
           <a href="{{.URL}}" class="mono">{{.ShortID}}</a>
 
-          <div class="mono">
-            {{range .Refs}}
-              {{if .URL}}
-                <a href="{{.URL}}">({{.Refspec}})</a>
-              {{else}}
-                ({{.Refspec}})
-              {{end}}
-            {{end}}
+          <div class="flex items-center gap-xs">
+            <span>{{.AuthorStr}}</span>
+            <span>&nbsp;&centerdot;&nbsp;</span>
+            <span>{{.WhenStr}}</span>
           </div>
-        </div>
 
-        <div class="flex items-center gap-xs text-sm">
-          <span>{{.AuthorStr}}</span>
-          <span>&nbsp;&centerdot;&nbsp;</span>
-          <span>{{.WhenStr}}</span>
+          {{range .Refs}}
+            {{if .URL}}
+              <code>
+                <a href="{{.URL}}">{{.Refspec}}</a>
+              </code>
+            {{else}}
+              <code>{{.Refspec}}</code>
+            {{end}}
+          {{end}}
         </div>
 
         <div>

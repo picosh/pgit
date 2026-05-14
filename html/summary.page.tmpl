@@ -1,13 +1,14 @@
 {{template "base" .}}
 
-{{define "title"}}{{.Repo.RepoName}}{{if .Repo.Desc}}- {{.Repo.Desc}}{{end}}{{end}}
+{{define "title"}}{{.Repo.RepoName}}{{end}}
 {{define "meta"}}
 <link rel="stylesheet" href="{{.Repo.RootRelative}}syntax.css" />
 {{end}}
 
 {{define "content"}}
-    <div>
-        {{if .SiteURLs.CloneURL}}<pre class="mb-0">git clone {{.SiteURLs.CloneURL}}</pre>{{end}}
-    </div>
-    {{.Readme}}
+  {{if .SiteURLs.CloneURL}}
+    <div class="box sticky border-visited mono">git clone {{.SiteURLs.CloneURL}}</div>
+  {{end}}
+
+  {{.Readme}}
 {{end}}

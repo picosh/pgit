@@ -11,14 +11,11 @@
     {{template "meta" .}}
 
     <link rel="stylesheet" href="{{.Repo.RootRelative}}vars.css" />
-    <link rel="stylesheet" href="{{.Repo.RootRelative}}smol.css" />
     <link rel="stylesheet" href="{{.Repo.RootRelative}}main.css" />
   </head>
   <body>
     <header class="box">{{template "header" .}}</header>
-    <hr class="my" />
     <main>{{template "content" .}}</main>
-    <hr class="my" />
     <footer>{{template "footer" .}}</footer>
   </body>
 </html>
