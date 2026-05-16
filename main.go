@@ -10,8 +10,10 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -191,8 +193,9 @@ type TreePageData struct {
 
 type LogPageData struct {
 	*PageData
-	NumCommits int
-	Logs       []*CommitData
+	NumCommits   int
+	TotalCommits int
+	Logs         []*CommitData
 }
 
 type FilePageData struct {
@@ -484,7 +487,7 @@ func (c *Config) writeTree(data PageData, tree *TreeRoot) {
 	})
 }
 
-func (c *Config) writeLog(data PageData, logs []*CommitData) {
+func (c *Config) writeLog(data PageData, logs []*CommitData, totalCommits int) {
 	data.ActivePage = "commits"
 	c.Logger.Info("writing log file", "revision", data.RevData.Name())
 	c.writeHtml(&WriteData{
@@ -492,9 +495,10 @@ func (c *Config) writeLog(data PageData, logs []*CommitData) {
 		Subdir:   getLogBaseDir(data.RevData),
 		Template: "html/log.page.tmpl",
 		Data: &LogPageData{
-			PageData:   &data,
-			NumCommits: len(logs),
-			Logs:       logs,
+			PageData:     &data,
+			NumCommits:   len(logs),
+			TotalCommits: totalCommits,
+			Logs:         logs,
 		},
 	})
 }
@@ -699,6 +703,23 @@ func (c *Config) getURLs() *SiteURLs {
 
 func getShortID(id string) string {
 	return id[:7]
+}
+
+// countCommits returns the total number of commits reachable from the given ref
+func countCommits(repo *git.Repository, ref string) int {
+	// git rev-list --count is the most efficient way to get total commit count
+	cmd := exec.Command("git", "rev-list", "--count", ref)
+	cmd.Dir = repo.Path() // run in the repo directory
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// fallback: if git command fails, return 0
+		return 0
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 func (c *Config) writeRepo() *BranchOutput {
@@ -1041,6 +1062,9 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		if pageSize == 0 {
 			pageSize = 5000
 		}
+		// get total commit count (unlimited) for display
+		totalCommits := countCommits(repo, pageData.RevData.ID())
+
 		commits, err := repo.CommitsByPage(pageData.RevData.ID(), 0, pageSize)
 		bail(err)
 
@@ -1076,7 +1100,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 			})
 		}
 
-		c.writeLog(*pageData, logs)
+		c.writeLog(*pageData, logs, totalCommits)
 
 		for _, cm := range logs {
 			wg.Add(1)

@@ -7,7 +7,12 @@
   <div class="group-2">
     <div class="box sticky flex items-center gap border-visited" style="margin: 0 !important;">
       <code>{{.RevData.Name}}</code>
-      <div><span class="font-bold">{{.NumCommits}}</span> commits</div>
+      <div>
+        <span class="font-bold">{{.NumCommits}}</span> commits
+        {{if and .TotalCommits (ne .NumCommits .TotalCommits)}}
+          <span class="text-sm">({{.NumCommits}} out of {{.TotalCommits}} generated)</span>
+        {{end}}
+      </div>
     </div>
 
     {{range .Logs}}
