@@ -36,7 +36,8 @@ static:
 		--clone-url "https://github.com/picosh/pgit.git" \
 		--issues-url "https://github.com/picosh/pgit/issues" \
 		--contrib-url "https://github.com/picosh/pgit/pulls" \
-		--revs main
+		--revs main \
+		--max-commits 10
 .PHONY: static
 
 dev: static
