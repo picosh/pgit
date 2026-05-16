@@ -23,6 +23,13 @@ To learn more about the options run:
 ./pgit --help
 ```
 
+## custom nav buttons
+
+We support adding additional buttons to the nav bar:
+
+- `--issues-url` redirects users to bug tracking site
+- `--contrib-url` redirects users to code collab site (e.g. gh pulls, patches, etc.)
+
 ## themes
 
 We support all [chroma](https://xyproto.github.io/splash/docs/all.html) themes.
