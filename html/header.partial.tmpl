@@ -1,6 +1,6 @@
 {{define "header"}}
 <div class="flex flex-col">
-  <nav class="flex gap">
+  <nav class="flex gap flex-wrap">
     <a class="btn-nav {{if eq .ActivePage `readme`}}btn-active{{end}}" href="{{.SiteURLs.SummaryURL}}">{{.Repo.RepoName}}</a>
     <a class="btn-nav flex items-center {{if eq .ActivePage `code`}}btn-active{{end}}" href="{{.RevData.TreeURL}}">
       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" height="16" width="16" viewBox="0 0 16 16" style="margin-right: 5px;">
