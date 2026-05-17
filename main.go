@@ -33,6 +33,10 @@ var embedFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
+var funcMap = template.FuncMap{
+	"add": func(a, b int) int { return a + b },
+}
+
 type Config struct {
 	// required params
 	Outdir string
@@ -114,7 +118,7 @@ type CommitData struct {
 	WhenStr    string
 	AuthorStr  string
 	ShortID    string
-	ParentID   string
+	ParentIDs  []string
 	Refs       []*RefInfo
 	*git.Commit
 }
@@ -206,13 +210,13 @@ type FilePageData struct {
 
 type CommitPageData struct {
 	*PageData
-	CommitMsg template.HTML
-	CommitID  string
-	Commit    *CommitData
-	Diff      *DiffRender
-	Parent    string
-	ParentURL template.URL
-	CommitURL template.URL
+	CommitMsg  template.HTML
+	CommitID   string
+	Commit     *CommitData
+	Diff       *DiffRender
+	Parents    []string
+	ParentURLs []template.URL
+	CommitURL  template.URL
 }
 
 type RefPageData struct {
@@ -375,7 +379,7 @@ func readmeFile(repo *Config) string {
 }
 
 func (c *Config) writeHtml(writeData *WriteData) {
-	ts, err := template.ParseFS(
+	ts, err := template.New("").Funcs(funcMap).ParseFS(
 		embedFS,
 		writeData.Template,
 		"html/header.partial.tmpl",
@@ -394,13 +398,14 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	w, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	bail(err)
 
-	err = ts.Execute(w, writeData.Data)
+	tplName := filepath.Base(writeData.Template)
+	err = ts.ExecuteTemplate(w, tplName, writeData.Data)
 	bail(err)
 }
 
 // writeHtmlIfChanged renders a template and only writes if content hash differs from existing file
 func (c *Config) writeHtmlIfChanged(writeData *WriteData) {
-	ts, err := template.ParseFS(
+	ts, err := template.New("").Funcs(funcMap).ParseFS(
 		embedFS,
 		writeData.Template,
 		"html/header.partial.tmpl",
@@ -411,7 +416,8 @@ func (c *Config) writeHtmlIfChanged(writeData *WriteData) {
 
 	// render to buffer first
 	var buf bytes.Buffer
-	err = ts.Execute(&buf, writeData.Data)
+	tplName := filepath.Base(writeData.Template)
+	err = ts.ExecuteTemplate(&buf, tplName, writeData.Data)
 	bail(err)
 
 	dir := filepath.Join(c.Outdir, writeData.Subdir)
@@ -613,14 +619,21 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData PageData, commit *C
 	}
 	rnd.Files = fls
 
+	shortParents := make([]string, len(commit.ParentIDs))
+	parentURLs := make([]template.URL, len(commit.ParentIDs))
+	for i, pid := range commit.ParentIDs {
+		shortParents[i] = getShortID(pid)
+		parentURLs[i] = c.getCommitURL(pid)
+	}
+
 	commitData := &CommitPageData{
-		PageData:  &pageData,
-		Commit:    commit,
-		CommitID:  getShortID(commitID),
-		Diff:      rnd,
-		Parent:    getShortID(commit.ParentID),
-		CommitURL: c.getCommitURL(commitID),
-		ParentURL: c.getCommitURL(commit.ParentID),
+		PageData:   &pageData,
+		Commit:     commit,
+		CommitID:   getShortID(commitID),
+		Diff:       rnd,
+		Parents:    shortParents,
+		CommitURL:  c.getCommitURL(commitID),
+		ParentURLs: parentURLs,
 	}
 
 	c.writeHtml(&WriteData{
@@ -1084,15 +1097,19 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 				}
 			}
 
-			parentSha, _ := commit.ParentID(0)
-			parentID := ""
-			if parentSha == nil {
-				parentID = commit.ID.String()
-			} else {
-				parentID = parentSha.String()
+			parentIDs := []string{}
+			for i := 0; ; i++ {
+				sha, _ := commit.ParentID(i)
+				if sha == nil {
+					if len(parentIDs) == 0 {
+						parentIDs = append(parentIDs, commit.ID.String())
+					}
+					break
+				}
+				parentIDs = append(parentIDs, sha.String())
 			}
 			logs = append(logs, &CommitData{
-				ParentID:   parentID,
+				ParentIDs:  parentIDs,
 				URL:        c.getCommitURL(commit.ID.String()),
 				ShortID:    getShortID(commit.ID.String()),
 				SummaryStr: commit.Summary(),

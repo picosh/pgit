@@ -15,7 +15,15 @@
     </div>
 
     <div>
-      parent <a href="{{.ParentURL}}">{{.Parent}}</a>
+      {{- $num := len .Parents -}}
+      {{- if eq $num 1 -}}
+      parent <a href="{{index .ParentURLs 0}}">{{index .Parents 0}}</a>
+      {{- else -}}
+      parents
+      {{- range $i, $p := .Parents}}
+        <a href="{{index $.ParentURLs $i}}">{{.}}</a>{{if lt (add $i 1) $num}}, {{end}}
+      {{- end}}
+      {{- end}}
     </div>
   </div>
 
