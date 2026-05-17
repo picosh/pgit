@@ -7,8 +7,8 @@
 {{define "content"}}
   <h2>Commit <code>{{.CommitID}}</code></h2>
 
-  <div class="flex justify-between">
-    <div class="flex items-center gap-xs">
+  <div class="flex justify-between flex-wrap">
+    <div class="flex flex-1 items-center gap-xs">
       <span>{{.Commit.Author.Name}}</span>
       <span>&nbsp;&centerdot;&nbsp;</span>
       <span>{{.Commit.Author.When}}</span>
