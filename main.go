@@ -734,7 +734,10 @@ func (c *Config) writeRepo() *BranchOutput {
 	revs := []*RevData{}
 	for _, revStr := range c.Revs {
 		fullRevID, err := repo.RevParse(revStr)
-		bail(err)
+		if err != nil {
+			c.Logger.Warn("revision not found, skipping", "revision", revStr, "error", err)
+			continue
+		}
 
 		revID := getShortID(fullRevID)
 		revName := revID
@@ -1200,7 +1203,7 @@ func style(theme chroma.Style) string {
 func main() {
 	var outdir = flag.String("out", "./public", "output directory")
 	var rpath = flag.String("repo", ".", "path to git repo")
-	var revsFlag = flag.String("revs", "HEAD", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD)")
+	var revsFlag = flag.String("revs", "main,master", "list of revs to generate logs and tree (e.g. main,v1,c69f86f,HEAD)")
 	var themeFlag = flag.String("theme", "dracula", "theme to use for site")
 	var labelFlag = flag.String("label", "", "pretty name for the subdir where we create the repo, default is last folder in --repo")
 	var cloneFlag = flag.String("clone-url", "", "git clone URL for upstream")
