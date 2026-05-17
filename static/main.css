@@ -267,14 +267,6 @@ footer {
   background-color: var(--bg-color);
 }
 
-.diff-file {
-  align-items: center;
-  position: sticky;
-  top: 0;
-  left: 0;
-  background-color: var(--bg-color);
-}
-
 .white-space-bs {
   white-space: break-spaces;
 }
