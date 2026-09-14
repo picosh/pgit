@@ -617,14 +617,7 @@ func (c *Config) writeLogDiff(repo *git.Repository, pageData PageData, commit *C
 			NumAdditions: file.NumAdditions(),
 			NumDeletions: file.NumDeletions(),
 		}
-		content := ""
-		for _, section := range file.Sections {
-			for _, line := range section.Lines {
-				content += fmt.Sprintf("%s\n", line.Content)
-			}
-		}
-		// set filename to something our `ParseText` recognizes (e.g. `.diff`)
-		finContent, err := c.parseText("commit.diff", content)
+		finContent, err := FormatDiffFile(c.Theme, file)
 		bail(err)
 
 		fl.Content = template.HTML(finContent)
@@ -1220,6 +1213,16 @@ func style(theme chroma.Style) string {
   --link-color: %s;
   --hover: %s;
   --visited: %s;
+  --grey-light: %s;
+  --admin: #f38ba8;
+  --success: #66f859;
+  --diff-add-bg: rgba(102, 248, 89, 0.12);
+  --diff-add-gutter: var(--success);
+  --diff-del-bg: rgba(243, 139, 168, 0.12);
+  --diff-del-gutter: var(--admin);
+  --diff-hunk-bg: rgba(139, 233, 253, 0.08);
+  --diff-hunk-text: var(--link-color);
+  --diff-num-text: var(--grey-light);
 }`,
 		bg.Background.String(),
 		txt.Colour.String(),
@@ -1227,6 +1230,7 @@ func style(theme chroma.Style) string {
 		nv.Colour.String(),
 		kw.Colour.String(),
 		ln.Colour.String(),
+		cm.Colour.String(),
 	)
 }
 
