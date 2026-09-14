@@ -403,7 +403,7 @@ func (c *Config) writeHtml(writeData *WriteData) {
 	bail(err)
 }
 
-// writeHtmlIfChanged renders a template and only writes if content hash differs from existing file
+// writeHtmlIfChanged renders a template and only writes if content hash differs from existing file.
 func (c *Config) writeHtmlIfChanged(writeData *WriteData) {
 	ts, err := template.New("").Funcs(funcMap).ParseFS(
 		embedFS,
@@ -431,7 +431,9 @@ func (c *Config) writeHtmlIfChanged(writeData *WriteData) {
 
 	// compare with existing file
 	if f, err := os.Open(fp); err == nil {
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 		h := sha256.New()
 		if _, err := io.Copy(h, f); err == nil {
 			if bytes.Equal(h.Sum(nil), newHash[:]) {
@@ -522,6 +524,11 @@ func (c *Config) writeRefs(data PageData, refs []*RefInfo) {
 	})
 }
 
+func isMarkdown(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return ext == ".md" || ext == ".markdown"
+}
+
 func (c *Config) writeHTMLTreeFile(pageData PageData, treeItem *TreeItem) string {
 	pageData.ActivePage = "code"
 	d := filepath.Dir(treeItem.Path)
@@ -535,8 +542,14 @@ func (c *Config) writeHTMLTreeFile(pageData PageData, treeItem *TreeItem) string
 	contents := "binary file, cannot display"
 	if treeItem.IsTextFile {
 		treeItem.NumLines = len(strings.Split(str, "\n"))
-		contents, err = c.parseText(treeItem.Entry.Name(), string(b))
-		bail(err)
+		if isMarkdown(treeItem.Entry.Name()) {
+			html, err := ParseMarkdown(str)
+			bail(err)
+			contents = html
+		} else {
+			contents, err = c.parseText(treeItem.Entry.Name(), str)
+			bail(err)
+		}
 	}
 
 	nameLower := strings.ToLower(treeItem.Entry.Name())
@@ -718,7 +731,7 @@ func getShortID(id string) string {
 	return id[:7]
 }
 
-// countCommits returns the total number of commits reachable from the given ref
+// countCommits returns the total number of commits reachable from the given ref.
 func countCommits(repo *git.Repository, ref string) int {
 	// git rev-list --count is the most efficient way to get total commit count
 	cmd := exec.Command("git", "rev-list", "--count", ref)

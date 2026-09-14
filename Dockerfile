@@ -7,7 +7,7 @@ RUN go mod download && go mod verify
 
 COPY . /app
 
-RUN go build -v -o pgit main.go
+RUN go build -v -o pgit .
 
 FROM debian:12
 WORKDIR /app

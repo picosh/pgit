@@ -10,7 +10,7 @@ clean:
 .PHONY: clean
 
 build:
-	go build -o pgit ./main.go
+	go build -o pgit .
 .PHONY: build
 
 img:
@@ -29,8 +29,11 @@ test:
 	go test ./...
 .PHONY: test
 
+check: lint test
+.PHONY: check
+
 static:
-	go run main.go \
+	go run . \
 		--out ./public \
 		--label pgit \
 		--clone-url "https://github.com/picosh/pgit.git" \
