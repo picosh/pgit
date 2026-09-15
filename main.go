@@ -277,12 +277,14 @@ func (c *Config) parseText(filename string, text string) (string, error) {
 // that is, if it is likely that s is human-readable text.
 func isText(s string) bool {
 	const max = 1024 // at least utf8.UTFMax
+	truncated := false
 	if len(s) > max {
 		s = s[0:max]
+		truncated = true
 	}
 	for i, c := range s {
-		if i+utf8.UTFMax > len(s) {
-			// last char may be incomplete - ignore
+		if truncated && i+utf8.UTFMax > len(s) {
+			// last char may be incomplete due to truncation - ignore
 			break
 		}
 		if c == 0xFFFD || c < ' ' && c != '\n' && c != '\t' && c != '\f' && c != '\r' {
@@ -326,12 +328,15 @@ var knownBinaryExts = newSet(
 var knownTextExts = newSet(
 	// code
 	".go", ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".c", ".h", ".cpp", ".hpp", ".rs", ".rb", ".php", ".pl", ".sh", ".bash", ".zsh", ".fish", ".ps1",
+	".lua", ".swift", ".kt", ".kts", ".dart", ".zig", ".scala", ".ex", ".exs", ".erl", ".hs", ".clj", ".cljs", ".el", ".lisp", ".r", ".jl",
 	// markup / data
-	".html", ".htm", ".css", ".scss", ".less", ".xml", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+	".html", ".htm", ".css", ".scss", ".less", ".xml", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
 	// docs
 	".md", ".markdown", ".txt", ".rst", ".tex", ".bib", ".csv", ".tsv",
 	// config / build
-	".Dockerfile", ".dockerignore", ".gitignore", ".gitattributes", ".editorconfig",
+	".dockerfile", ".dockerignore", ".gitignore", ".gitattributes", ".gitmodules", ".editorconfig",
+	// templates / meta
+	".tmpl", ".template", ".mod", ".sum", ".env", ".lock", ".license", ".licence", ".copying",
 	// other text
 	".diff", ".patch", ".log", ".sql", ".graphql", ".proto", ".makefile", ".cmake",
 )
@@ -541,7 +546,11 @@ func (c *Config) writeHTMLTreeFile(pageData PageData, treeItem *TreeItem) string
 
 	contents := "binary file, cannot display"
 	if treeItem.IsTextFile {
-		treeItem.NumLines = len(strings.Split(str, "\n"))
+		if len(str) == 0 {
+			treeItem.NumLines = 0
+		} else {
+			treeItem.NumLines = len(strings.Split(strings.TrimSuffix(str, "\n"), "\n"))
+		}
 		if isMarkdown(treeItem.Entry.Name()) {
 			html, err := ParseMarkdown(str)
 			bail(err)
@@ -1141,6 +1150,7 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 	bail(err)
 
 	readme := ""
+	var readmeMu sync.Mutex
 	entries := make(chan *TreeItem)
 	subtrees := make(chan *TreeRoot)
 	tw := &TreeWalker{
@@ -1150,42 +1160,63 @@ func (c *Config) writeRevision(repo *git.Repository, pageData *PageData, refs []
 		treeItem: entries,
 		tree:     subtrees,
 	}
-	wg.Add(1)
+
+	var twWg sync.WaitGroup
+	twWg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer twWg.Done()
 		tw.walk(tree, "")
 	}()
 
-	wg.Add(1)
+	var roots []*TreeRoot
+	var rootsMu sync.Mutex
+	var subtreeWg sync.WaitGroup
+	subtreeWg.Add(1)
 	go func() {
-		defer wg.Done()
-		for e := range entries {
-			wg.Add(1)
-			go func(entry *TreeItem) {
-				defer wg.Done()
-				if entry.IsDir {
-					return
-				}
+		defer subtreeWg.Done()
+		for t := range subtrees {
+			rootsMu.Lock()
+			roots = append(roots, t)
+			rootsMu.Unlock()
+		}
+	}()
 
+	var fileWg sync.WaitGroup
+	var entryWg sync.WaitGroup
+	entryWg.Add(1)
+	go func() {
+		defer entryWg.Done()
+		for e := range entries {
+			if e.IsDir {
+				continue
+			}
+			fileWg.Add(1)
+			go func(entry *TreeItem) {
+				defer fileWg.Done()
 				readmeStr := c.writeHTMLTreeFile(*pageData, entry)
 				if readmeStr != "" {
+					readmeMu.Lock()
 					readme = readmeStr
+					readmeMu.Unlock()
 				}
 			}(e)
 		}
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for t := range subtrees {
-			wg.Add(1)
-			go func(tree *TreeRoot) {
-				defer wg.Done()
-				c.writeTree(*pageData, tree)
-			}(t)
-		}
-	}()
+	twWg.Wait()
+	subtreeWg.Wait()
+	entryWg.Wait()
+	fileWg.Wait()
+
+	var treeWg sync.WaitGroup
+	for _, t := range roots {
+		treeWg.Add(1)
+		go func(tree *TreeRoot) {
+			defer treeWg.Done()
+			c.writeTree(*pageData, tree)
+		}(t)
+	}
+	treeWg.Wait()
 
 	wg.Wait()
 
