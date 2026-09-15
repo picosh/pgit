@@ -228,6 +228,11 @@ footer {
   flex: 1;
 }
 
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
 .box {
   border: 2px solid var(--grey-light);
   padding: var(--grid-height);

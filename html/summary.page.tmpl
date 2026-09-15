@@ -6,9 +6,11 @@
 {{end}}
 
 {{define "content"}}
-  {{if .SiteURLs.CloneURL}}
-    <div class="box sticky border-visited mono">git clone {{.SiteURLs.CloneURL}}</div>
-  {{end}}
+  <div class="container">
+    {{if .SiteURLs.CloneURL}}
+      <div class="box sticky border-visited mono">git clone {{.SiteURLs.CloneURL}}</div>
+    {{end}}
 
-  {{.Readme}}
+    {{.Readme}}
+  </div>
 {{end}}

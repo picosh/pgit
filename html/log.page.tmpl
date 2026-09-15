@@ -4,7 +4,7 @@
 {{define "meta"}}{{end}}
 
 {{define "content"}}
-  <div class="group-2">
+  <div class="container group-2">
     <div class="box sticky flex items-center gap border-visited flex-wrap" style="margin: 0 !important;">
       <code>{{.RevData.Name}}</code>
       <div>
@@ -17,10 +17,10 @@
 
     {{range .Logs}}
       <div>
-        <div class="flex items-center gap mb text-sm">
-          <a href="{{.URL}}" class="mono">{{.ShortID}}</a>
+        <div class="flex items-center gap mb">
+          <a href="{{.URL}}" class="mono font-bold">{{.ShortID}}</a>
 
-          <div class="flex items-center gap-xs">
+          <div class="flex items-center gap-xs text-sm">
             <span>{{.AuthorStr}}</span>
             <span>&nbsp;&centerdot;&nbsp;</span>
             <span>{{.WhenStr}}</span>
@@ -38,7 +38,7 @@
         </div>
 
         <div>
-          <pre class="m-0 white-space-bs">{{.Message}}</pre>
+          <pre class="m-0 white-space-bs text-sm">{{.Message}}</pre>
         </div>
       </div>
     {{end}}
