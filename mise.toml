@@ -1,3 +1,0 @@
-[tools]
-go = "1.25.0"
-"go:golang.org/x/tools/gopls" = "latest"

@@ -38,10 +38,10 @@ var funcMap = template.FuncMap{
 }
 
 type Config struct {
-	// required params
-	Outdir string
-	// abs path to git repo
-	RepoPath string
+			// required params
+			Outdir string
+			// abs path to git repo
+			RepoPath string
 
 	// optional params
 	// generate logs anad tree based on the git revisions provided
